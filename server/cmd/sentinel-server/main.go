@@ -18,8 +18,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/sentinel-io/sentinel/server/internal/api"
+	"github.com/sentinel-io/sentinel/server/internal/broker"
 	"github.com/sentinel-io/sentinel/server/internal/ca"
 	"github.com/sentinel-io/sentinel/server/internal/config"
+	"github.com/sentinel-io/sentinel/server/internal/detection"
+	"github.com/sentinel-io/sentinel/server/internal/indexer"
 	"github.com/sentinel-io/sentinel/server/internal/ingest"
 	"github.com/sentinel-io/sentinel/server/internal/store"
 )
@@ -67,8 +70,27 @@ func main() {
 	}
 	log.Info("OpenSearch client initialized")
 
+	// ── Initialize NATS Broker ────────────────────────────────────
+	msgBroker, err := broker.New(cfg.NATS, log)
+	if err != nil {
+		log.Fatalf("Failed to initialize NATS broker: %v", err)
+	}
+	log.Info("NATS Broker initialized")
+
+	// ── Start Detection Engine ────────────────────────────────────
+	detEngine := detection.New(msgBroker, log)
+	if err := detEngine.Start(); err != nil {
+		log.Fatalf("Failed to start Detection Engine: %v", err)
+	}
+
+	// ── Start OpenSearch Indexer ──────────────────────────────────
+	osIndexer := indexer.New(msgBroker, osClient, log)
+	if err := osIndexer.Start(); err != nil {
+		log.Fatalf("Failed to start OpenSearch Indexer: %v", err)
+	}
+
 	// ── Start gRPC server (agent telemetry ingest) ────────────────
-	grpcServer := ingest.NewGRPCServer(cfg, certAuthority, log)
+	grpcServer := ingest.NewGRPCServer(cfg, certAuthority, msgBroker, log)
 	grpcLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC port %d: %v", cfg.GRPCPort, err)
@@ -112,6 +134,13 @@ func main() {
 
 	// Shutdown gRPC server
 	grpcServer.GracefulStop()
+
+	// Shutdown Detection Engine and Indexer
+	detEngine.Stop()
+	osIndexer.Stop()
+
+	// Shutdown NATS broker
+	msgBroker.Close()
 
 	log.Info("Sentinel Server stopped")
 }

@@ -53,7 +53,7 @@ jobs:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: dashboard/package-lock.json
-      - run: npm ci
+      - run: npm i
       - run: npm run build
 
   # ── Python Anomaly Engine ─────────────────────────────────────────

@@ -25,10 +25,13 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 	// API v1 route groups
 	v1 := r.Group("/api/v1")
 	{
+		// Enrollment
+		v1.POST("/enrollment/token", generateTokenHandler(cfg.JWT.SigningKey))
+
 		// Agents
 		agents := v1.Group("/agents")
 		{
-			agents.GET("", listAgentsHandler())
+			agents.GET("", listAgentsHandler(osClient))
 			agents.GET("/:id", getAgentHandler())
 			agents.DELETE("/:id", deleteAgentHandler())
 		}
@@ -36,7 +39,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		// Alerts
 		alerts := v1.Group("/alerts")
 		{
-			alerts.GET("", listAlertsHandler())
+			alerts.GET("", listAlertsHandler(osClient))
 			alerts.GET("/:id", getAlertHandler())
 			alerts.PATCH("/:id", updateAlertHandler())
 		}
@@ -44,7 +47,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		// Events
 		events := v1.Group("/events")
 		{
-			events.GET("", searchEventsHandler())
+			events.GET("", searchEventsHandler(osClient))
 		}
 
 		// Rules
@@ -82,18 +85,15 @@ func corsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// Placeholder handlers — will be implemented in Phase 2
-func listAgentsHandler() gin.HandlerFunc   { return placeholder("list agents") }
-func getAgentHandler() gin.HandlerFunc     { return placeholder("get agent") }
-func deleteAgentHandler() gin.HandlerFunc  { return placeholder("delete agent") }
-func listAlertsHandler() gin.HandlerFunc   { return placeholder("list alerts") }
-func getAlertHandler() gin.HandlerFunc     { return placeholder("get alert") }
-func updateAlertHandler() gin.HandlerFunc  { return placeholder("update alert") }
-func searchEventsHandler() gin.HandlerFunc { return placeholder("search events") }
-func listRulesHandler() gin.HandlerFunc    { return placeholder("list rules") }
-func createRuleHandler() gin.HandlerFunc   { return placeholder("create rule") }
-func updateRuleHandler() gin.HandlerFunc   { return placeholder("update rule") }
-func deleteRuleHandler() gin.HandlerFunc   { return placeholder("delete rule") }
+// Placeholder handlers — will be implemented in later phases
+func getAgentHandler() gin.HandlerFunc        { return placeholder("get agent") }
+func deleteAgentHandler() gin.HandlerFunc     { return placeholder("delete agent") }
+func getAlertHandler() gin.HandlerFunc        { return placeholder("get alert") }
+func updateAlertHandler() gin.HandlerFunc     { return placeholder("update alert") }
+func listRulesHandler() gin.HandlerFunc       { return placeholder("list rules") }
+func createRuleHandler() gin.HandlerFunc      { return placeholder("create rule") }
+func updateRuleHandler() gin.HandlerFunc      { return placeholder("update rule") }
+func deleteRuleHandler() gin.HandlerFunc      { return placeholder("delete rule") }
 func listDashboardsHandler() gin.HandlerFunc  { return placeholder("list dashboards") }
 func createDashboardHandler() gin.HandlerFunc { return placeholder("create dashboard") }
 func updateDashboardHandler() gin.HandlerFunc { return placeholder("update dashboard") }
@@ -102,7 +102,7 @@ func deleteDashboardHandler() gin.HandlerFunc { return placeholder("delete dashb
 func placeholder(name string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{
-			"message": name + " — not yet implemented (Phase 2)",
+			"message": name + " — not yet implemented",
 		})
 	}
 }

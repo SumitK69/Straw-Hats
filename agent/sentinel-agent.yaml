@@ -1,0 +1,9 @@
+server_address: "localhost:4222"
+buffer_dir: "/tmp/sentinel/buffer"
+log_level: "debug"
+modules:
+  process_events: false
+  file_integrity: false
+  network_flows: false
+  log_collection: false
+  os_metrics: true

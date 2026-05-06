@@ -20,11 +20,11 @@ import (
 
 // CertAuthority manages the server's internal CA and issues agent certificates.
 type CertAuthority struct {
-	mu       sync.RWMutex
-	caCert   *x509.Certificate
-	caKey    *ecdsa.PrivateKey
-	certDir  string
-	config   config.CAConfig
+	mu      sync.RWMutex
+	caCert  *x509.Certificate
+	caKey   *ecdsa.PrivateKey
+	certDir string
+	config  config.CAConfig
 }
 
 // New creates or loads an existing Certificate Authority.

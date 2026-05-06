@@ -29,7 +29,7 @@ build-agent:
 
 build-dashboard:
 	@echo "▸ Building Sentinel Dashboard..."
-	cd dashboard && npm ci && npm run build
+	cd dashboard && npm i && npm run build
 
 build-anomaly:
 	@echo "▸ Building Anomaly Engine..."

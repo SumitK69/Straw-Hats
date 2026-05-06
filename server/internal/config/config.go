@@ -22,11 +22,11 @@ type Config struct {
 
 // CAConfig holds Certificate Authority settings.
 type CAConfig struct {
-	CertDir        string `mapstructure:"cert_dir"`         // directory to store CA and agent certs
-	CAValidityDays int    `mapstructure:"ca_validity_days"`  // default: 3650 (10 years)
-	CertValidityDays int  `mapstructure:"cert_validity_days"` // default: 365 (1 year)
-	RenewalDays    int    `mapstructure:"renewal_days"`      // renew N days before expiry (default: 30)
-	KeyAlgorithm   string `mapstructure:"key_algorithm"`     // "ecdsa-p256" or "rsa-4096"
+	CertDir          string `mapstructure:"cert_dir"`           // directory to store CA and agent certs
+	CAValidityDays   int    `mapstructure:"ca_validity_days"`   // default: 3650 (10 years)
+	CertValidityDays int    `mapstructure:"cert_validity_days"` // default: 365 (1 year)
+	RenewalDays      int    `mapstructure:"renewal_days"`       // renew N days before expiry (default: 30)
+	KeyAlgorithm     string `mapstructure:"key_algorithm"`      // "ecdsa-p256" or "rsa-4096"
 }
 
 // OpenSearchConfig holds OpenSearch connection settings.
@@ -41,14 +41,14 @@ type OpenSearchConfig struct {
 // NATSConfig holds embedded NATS JetStream settings.
 type NATSConfig struct {
 	URL       string `mapstructure:"url"`
-	Embedded  bool   `mapstructure:"embedded"`  // use embedded NATS server
-	DataDir   string `mapstructure:"data_dir"`  // JetStream storage directory
+	Embedded  bool   `mapstructure:"embedded"`   // use embedded NATS server
+	DataDir   string `mapstructure:"data_dir"`   // JetStream storage directory
 	MaxMemory int64  `mapstructure:"max_memory"` // max memory for JetStream (bytes)
 }
 
 // JWTConfig holds JWT authentication settings.
 type JWTConfig struct {
-	SigningKey       string `mapstructure:"signing_key"`
+	SigningKey      string `mapstructure:"signing_key"`
 	AccessTokenTTL  string `mapstructure:"access_token_ttl"`  // default: "1h"
 	RefreshTokenTTL string `mapstructure:"refresh_token_ttl"` // default: "168h" (7 days)
 }

@@ -4,6 +4,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,7 +26,9 @@ func NewOpenSearchClient(cfg config.OpenSearchConfig) (*Client, error) {
 		Addresses: cfg.Addresses,
 		Username:  cfg.Username,
 		Password:  cfg.Password,
-		Transport: &http.Transport{},
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("opensearch client: %w", err)
@@ -152,4 +155,29 @@ func (c *Client) BulkIndex(ctx context.Context, index string, docs []map[string]
 		return fmt.Errorf("bulk index error: %s", res.Status())
 	}
 	return nil
+}
+
+// Search executes a raw search query against OpenSearch.
+func (c *Client) Search(ctx context.Context, index string, queryBody []byte) (map[string]interface{}, error) {
+	req := opensearchapi.SearchRequest{
+		Index: []string{index},
+		Body:  bytes.NewReader(queryBody),
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return nil, fmt.Errorf("search error: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return nil, fmt.Errorf("search returned error: %s", res.Status())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode search response: %w", err)
+	}
+
+	return result, nil
 }

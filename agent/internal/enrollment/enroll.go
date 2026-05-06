@@ -110,7 +110,7 @@ func Enroll(cfg *config.Config, tokenStr string) error {
 	}
 
 	// Save certificates
-	certDir := "/var/sentinel/certs"
+	certDir := "/tmp/sentinel/certs"
 	if err := os.MkdirAll(certDir, 0755); err != nil {
 		return fmt.Errorf("failed to create cert dir: %w", err)
 	}

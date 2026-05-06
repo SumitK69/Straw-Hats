@@ -4,7 +4,10 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
+
+	"encoding/json"
 
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
@@ -12,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/sentinel-io/sentinel/server/internal/broker"
 	"github.com/sentinel-io/sentinel/server/internal/ca"
 	"github.com/sentinel-io/sentinel/server/internal/config"
 	pb "github.com/sentinel-io/sentinel/server/proto/sentinelpb"
@@ -22,6 +26,7 @@ type GRPCServer struct {
 	server *grpc.Server
 	cfg    *config.Config
 	ca     *ca.CertAuthority
+	broker *broker.Broker
 	log    *zap.SugaredLogger
 
 	pb.UnimplementedAgentEnrollmentServiceServer
@@ -29,11 +34,12 @@ type GRPCServer struct {
 }
 
 // NewGRPCServer creates a new gRPC server for agent telemetry.
-func NewGRPCServer(cfg *config.Config, certAuth *ca.CertAuthority, log *zap.SugaredLogger) *GRPCServer {
+func NewGRPCServer(cfg *config.Config, certAuth *ca.CertAuthority, msgBroker *broker.Broker, log *zap.SugaredLogger) *GRPCServer {
 	s := &GRPCServer{
-		cfg: cfg,
-		ca:  certAuth,
-		log: log,
+		cfg:    cfg,
+		ca:     certAuth,
+		broker: msgBroker,
+		log:    log,
 	}
 
 	opts := []grpc.ServerOption{
@@ -80,9 +86,7 @@ func (s *GRPCServer) Enroll(ctx context.Context, req *pb.EnrollmentRequest) (*pb
 		return nil, status.Error(codes.Unauthenticated, "invalid enrollment token")
 	}
 
-	// Extract or generate an agent ID. For simplicity, we use the MachineId from fingerprint if available,
-	// otherwise we just let the CA generate the Common Name which acts as the agent ID.
-	// Actually, let's use MachineId if it's there.
+	// Extract or generate an agent ID
 	agentID := req.Fingerprint.MachineId
 	if agentID == "" {
 		return nil, status.Error(codes.InvalidArgument, "machine_id is required in fingerprint")
@@ -91,18 +95,12 @@ func (s *GRPCServer) Enroll(ctx context.Context, req *pb.EnrollmentRequest) (*pb
 	s.log.Infow("Agent enrollment request", "agent_id", agentID, "hostname", req.Fingerprint.Hostname)
 
 	// Issue certificate
-	// We pass the hostname as the fingerprint argument for the CA to include in the cert subject if needed.
 	certPEM, keyPEM, caCertPEM, err := s.ca.IssueCert(agentID, req.Fingerprint.Hostname)
 	if err != nil {
 		s.log.Errorw("Failed to issue cert", "agent_id", agentID, "error", err)
 		return nil, status.Error(codes.Internal, "failed to issue certificate")
 	}
 
-	// TODO: Phase 2 - Store agent metadata in OpenSearch
-
-	// Build the response
-	// The server address for telemetry is usually the gRPC endpoint.
-	// For production, this should be configurable. We'll use a placeholder for now.
 	serverAddr := fmt.Sprintf("sentinel-server:%d", s.cfg.GRPCPort)
 
 	return &pb.EnrollmentResponse{
@@ -118,12 +116,51 @@ func (s *GRPCServer) Enroll(ctx context.Context, req *pb.EnrollmentRequest) (*pb
 
 // StreamEvents handles bidirectional event streaming from agents.
 func (s *GRPCServer) StreamEvents(stream pb.AgentTelemetryService_StreamEventsServer) error {
-	s.log.Info("StreamEvents connection opened (Phase 2 implementation pending)")
-	return status.Error(codes.Unimplemented, "not implemented")
+	s.log.Info("Agent stream connected")
+
+	for {
+		batch, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			s.log.Errorw("Error receiving event batch", "error", err)
+			return err
+		}
+
+		s.log.Debugw("Received event batch", "agent_id", batch.AgentId, "events_count", len(batch.Events))
+
+		// Process and queue events to NATS
+		for _, e := range batch.Events {
+			// Convert pb.Event to JSON payload for NATS
+			payload, err := json.Marshal(e)
+			if err != nil {
+				s.log.Errorw("Failed to marshal event", "error", err, "event_id", e.Id)
+				continue
+			}
+
+			// Publish to NATS JetStream synchronously (for MVP simplicity)
+			subject := fmt.Sprintf("events.%s", e.Type.String())
+			if _, err := s.broker.JS().Publish(subject, payload); err != nil {
+				s.log.Errorw("Failed to publish event to NATS", "error", err, "event_id", e.Id)
+				// We should probably return an error or handle retry, but for MVP we continue
+			}
+		}
+
+		// Send acknowledgment
+		err = stream.Send(&pb.IngestResponse{
+			Accepted:      true,
+			AckedSequence: batch.SequenceNumber,
+		})
+		if err != nil {
+			s.log.Errorw("Error sending ingest response", "error", err)
+			return err
+		}
+	}
 }
 
 // CommandChannel handles the active response command stream.
 func (s *GRPCServer) CommandChannel(stream pb.AgentTelemetryService_CommandChannelServer) error {
-	s.log.Info("CommandChannel connection opened (Phase 2 implementation pending)")
+	s.log.Info("CommandChannel connection opened (Phase 4 implementation pending)")
 	return status.Error(codes.Unimplemented, "not implemented")
 }
