@@ -68,7 +68,7 @@ func main() {
 	log.Info("OpenSearch client initialized")
 
 	// ── Start gRPC server (agent telemetry ingest) ────────────────
-	grpcServer := ingest.NewGRPCServer(certAuthority, log)
+	grpcServer := ingest.NewGRPCServer(cfg, certAuthority, log)
 	grpcLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC port %d: %v", cfg.GRPCPort, err)

@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/sentinel-io/sentinel/agent/internal/config"
+	"github.com/sentinel-io/sentinel/agent/internal/enrollment"
 )
 
 var (
@@ -58,13 +59,10 @@ func main() {
 	// ── Enrollment flow ───────────────────────────────────────────
 	if *token != "" {
 		log.Info("Enrollment token provided — starting enrollment flow")
-		// TODO: Implement enrollment:
-		// 1. Decode token to extract server endpoint
-		// 2. Collect system fingerprint
-		// 3. Send enrollment request to server
-		// 4. Receive and store mTLS certificates
-		// 5. Write config file with server address and cert paths
-		log.Info("Enrollment flow — not yet implemented (Phase 1)")
+		if err := enrollment.Enroll(cfg, *token); err != nil {
+			log.Fatalf("Enrollment failed: %v", err)
+		}
+		log.Info("Enrollment successful")
 
 		if *install {
 			log.Info("Installing as system service — not yet implemented (Phase 1)")
