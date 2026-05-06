@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package sentinel.v1;
+
+option go_package = "github.com/sentinel-io/sentinel/server/proto/sentinelpb";
+
+import "google/protobuf/timestamp.proto";
+
+// ─── Agent Enrollment ────────────────────────────────────────────────
+
+message SystemFingerprint {
+  string hostname = 1;
+  string os = 2;           // "linux", "windows", "darwin"
+  string arch = 3;         // "amd64", "arm64"
+  string os_version = 4;   // e.g. "Ubuntu 22.04", "Windows 11 23H2"
+  string kernel = 5;
+  uint32 cpu_cores = 6;
+  uint64 memory_bytes = 7;
+  string machine_id = 8;   // unique machine identifier
+}
+
+message EnrollmentRequest {
+  string token = 1;                       // single-use JWT enrollment token
+  SystemFingerprint fingerprint = 2;
+  string agent_version = 3;
+}
+
+message EnrollmentResponse {
+  string agent_id = 1;
+  bytes agent_cert = 2;       // PEM-encoded agent TLS certificate
+  bytes agent_key = 3;        // PEM-encoded agent private key
+  bytes ca_cert = 4;          // PEM-encoded server CA certificate
+  string server_address = 5;  // gRPC endpoint for telemetry streaming
+}
+
+// ─── Events ──────────────────────────────────────────────────────────
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_PROCESS = 1;
+  EVENT_TYPE_FILE = 2;
+  EVENT_TYPE_NETWORK = 3;
+  EVENT_TYPE_LOG = 4;
+  EVENT_TYPE_METRIC = 5;
+  EVENT_TYPE_VULNERABILITY = 6;
+  EVENT_TYPE_CONTAINER = 7;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_INFO = 1;
+  SEVERITY_LOW = 2;
+  SEVERITY_MEDIUM = 3;
+  SEVERITY_HIGH = 4;
+  SEVERITY_CRITICAL = 5;
+}
+
+message Event {
+  string id = 1;
+  string agent_id = 2;
+  EventType type = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  map<string, string> fields = 5;    // flexible key-value payload
+  bytes raw_data = 6;                // optional raw log line
+}
+
+message EventBatch {
+  string agent_id = 1;
+  repeated Event events = 2;
+  uint64 sequence_number = 3;        // for ordered replay from buffer
+  bool compressed = 4;               // if true, events payload is gzip-compressed
+}
+
+message IngestResponse {
+  bool accepted = 1;
+  uint64 acked_sequence = 2;         // highest sequence number server accepted
+  string error = 3;
+}
+
+// ─── Active Response Commands ────────────────────────────────────────
+
+enum CommandType {
+  COMMAND_TYPE_UNSPECIFIED = 0;
+  COMMAND_TYPE_KILL_PROCESS = 1;
+  COMMAND_TYPE_BLOCK_IP = 2;
+  COMMAND_TYPE_UNBLOCK_IP = 3;
+  COMMAND_TYPE_ISOLATE_HOST = 4;
+  COMMAND_TYPE_UNISOLATE_HOST = 5;
+  COMMAND_TYPE_QUARANTINE_FILE = 6;
+  COMMAND_TYPE_UNQUARANTINE_FILE = 7;
+  COMMAND_TYPE_RUN_SCRIPT = 8;
+}
+
+message CommandRequest {
+  string command_id = 1;
+  CommandType type = 2;
+  map<string, string> parameters = 3;  // e.g. {"pid": "1234"}, {"ip": "1.2.3.4"}
+  google.protobuf.Timestamp issued_at = 4;
+  uint32 timeout_seconds = 5;          // default 30
+}
+
+message CommandResponse {
+  string command_id = 1;
+  bool success = 2;
+  string output = 3;
+  string error = 4;
+  google.protobuf.Timestamp completed_at = 5;
+}
+
+// ─── Services ────────────────────────────────────────────────────────
+
+// AgentEnrollment handles initial agent registration
+service AgentEnrollmentService {
+  rpc Enroll(EnrollmentRequest) returns (EnrollmentResponse);
+}
+
+// AgentTelemetry handles bidirectional event streaming and command delivery
+service AgentTelemetryService {
+  // Agent streams event batches to server; server acks
+  rpc StreamEvents(stream EventBatch) returns (stream IngestResponse);
+
+  // Server pushes commands to agent; agent responds with outcomes
+  rpc CommandChannel(stream CommandResponse) returns (stream CommandRequest);
+}
+
+// ─── Health ──────────────────────────────────────────────────────────
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;            // "healthy", "degraded", "unhealthy"
+  string version = 2;
+  google.protobuf.Timestamp uptime_since = 3;
+  map<string, string> components = 4;  // {"opensearch": "healthy", "nats": "healthy"}
+}
+
+service HealthService {
+  rpc Check(HealthRequest) returns (HealthResponse);
+}

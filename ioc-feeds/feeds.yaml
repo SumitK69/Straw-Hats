@@ -1,0 +1,49 @@
+# ─── Sentinel IOC Feed Configuration ──────────────────────────────────
+# Default threat intelligence feeds that auto-sync daily.
+# Users can add custom feeds via the dashboard.
+
+feeds:
+  - name: "AlienVault OTX"
+    url: "https://otx.alienvault.com/api/v1/pulses/subscribed"
+    format: "otx"
+    types:
+      - "ip"
+      - "domain"
+      - "file_hash"
+      - "url"
+    sync_interval: "24h"
+    enabled: true
+    api_key_env: "SENTINEL_OTX_API_KEY"
+
+  - name: "Abuse.ch URLhaus"
+    url: "https://urlhaus.abuse.ch/downloads/csv_recent/"
+    format: "csv"
+    types:
+      - "url"
+      - "domain"
+    sync_interval: "6h"
+    enabled: true
+
+  - name: "Abuse.ch Feodo Tracker"
+    url: "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt"
+    format: "plaintext_ip"
+    types:
+      - "ip"
+    sync_interval: "6h"
+    enabled: true
+
+  - name: "Abuse.ch MalwareBazaar"
+    url: "https://bazaar.abuse.ch/export/csv/recent/"
+    format: "csv"
+    types:
+      - "file_hash"
+    sync_interval: "12h"
+    enabled: true
+
+  - name: "Emerging Threats"
+    url: "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
+    format: "plaintext_ip"
+    types:
+      - "ip"
+    sync_interval: "24h"
+    enabled: true

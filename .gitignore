@@ -1,0 +1,61 @@
+# ─── Go ───────────────────────────────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+server/sentinel-server
+agent/sentinel-agent
+
+# ─── Node / Dashboard ─────────────────────────────────────────────────
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+.eslintcache
+
+# ─── Python / Anomaly Engine ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# ─── Docker ───────────────────────────────────────────────────────────
+deploy/.env
+
+# ─── IDE ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Certificates (never commit) ─────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.csr
+certs/
+
+# ─── Build artifacts ──────────────────────────────────────────────────
+build/
+tmp/
+*.log
+coverage/
+htmlcov/
+
+# ─── Generated docs ──────────────────────────────────────────────────
+StrawHatPRD.docx

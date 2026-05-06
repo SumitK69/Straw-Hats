@@ -1,0 +1,24 @@
+---
+id: "550e8400-e29b-41d4-a716-446655440001"
+name: "SSH Brute Force Attempt"
+severity: "high"
+description: "Detects 5 or more failed SSH login attempts from the same source IP within 60 seconds, indicating a potential brute force attack."
+enabled: true
+tags:
+  - "attack.credential_access"
+  - "attack.t1110.001"
+  - "attack.brute_force"
+condition:
+  event_type: "log"
+  field_match:
+    message: "Failed password"
+    process_name: "sshd"
+  group_by: "source_ip"
+  window: "60s"
+  threshold: 5
+response_action:
+  type: "block_ip"
+  parameters:
+    source: "event.source_ip"
+    direction: "inbound"
+    duration: "1h"

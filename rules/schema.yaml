@@ -1,0 +1,42 @@
+# Sentinel Detection Rule Schema
+# Rules are Sigma-compatible subset for community interoperability.
+
+# Each rule file is a YAML document with these fields:
+schema_version: "1.0"
+
+# Required fields:
+# - id: Unique UUID for the rule
+# - name: Human-readable rule name
+# - severity: critical | high | medium | low | info
+# - description: What this rule detects
+# - condition: Detection logic
+# - tags: MITRE ATT&CK technique IDs
+
+# Optional fields:
+# - response_action: Auto-response to trigger on match
+# - enabled: Whether the rule is active (default: true)
+# - window: Sliding window for correlation rules (e.g., "60s", "5m")
+# - threshold: Number of matches in window before alerting
+
+# Example structure:
+# ---
+# id: "550e8400-e29b-41d4-a716-446655440001"
+# name: "SSH Brute Force Attempt"
+# severity: "high"
+# description: "Detects multiple failed SSH login attempts"
+# enabled: true
+# tags:
+#   - "attack.credential_access"
+#   - "attack.t1110.001"
+# condition:
+#   event_type: "log"
+#   field_match:
+#     message: "Failed password"
+#     process_name: "sshd"
+#   window: "60s"
+#   threshold: 5
+# response_action:
+#   type: "block_ip"
+#   parameters:
+#     source: "event.source_ip"
+#     duration: "1h"

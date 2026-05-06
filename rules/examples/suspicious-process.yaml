@@ -1,0 +1,37 @@
+---
+id: "550e8400-e29b-41d4-a716-446655440002"
+name: "Suspicious Process Execution"
+severity: "critical"
+description: "Detects execution of known offensive tools commonly used in attacks (Mimikatz, nc, nmap, etc.)."
+enabled: true
+tags:
+  - "attack.execution"
+  - "attack.t1059"
+  - "attack.defense_evasion"
+condition:
+  event_type: "process"
+  field_match_any:
+    process_name:
+      - "mimikatz"
+      - "mimikatz.exe"
+      - "procdump"
+      - "procdump64"
+      - "lazagne"
+      - "rubeus"
+      - "sharphound"
+      - "bloodhound"
+      - "psexec"
+      - "psexec64"
+      - "ncat"
+      - "nc"
+      - "netcat"
+    command_line_contains:
+      - "sekurlsa::logonpasswords"
+      - "lsass.dmp"
+      - "Invoke-Mimikatz"
+      - "-e /bin/bash"
+      - "reverse_tcp"
+response_action:
+  type: "kill_process"
+  parameters:
+    pid: "event.pid"
