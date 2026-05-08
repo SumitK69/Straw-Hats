@@ -1,0 +1,20 @@
+title: Authentication Failure
+id: rule-auth-failure
+status: stable
+description: A generic authentication failure occurred
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.credential_access
+  - attack.t1110
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    message|contains: "authentication failure"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 4

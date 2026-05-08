@@ -29,23 +29,24 @@ const (
 
 // Rule represents a detection rule that evaluates incoming events.
 type Rule struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Severity    string   `json:"severity"`
-	Enabled     bool     `json:"enabled"`
-	EventTypes  []int32  `json:"event_types"` // Which event types to evaluate (4=LOG, 1=PROCESS, etc.)
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Severity    string      `json:"severity"`
+	Enabled     bool        `json:"enabled"`
+	EventTypes  []int32     `json:"event_types"`  // Which event types to evaluate (4=LOG, 1=PROCESS, etc.)
 	Conditions  []Condition `json:"conditions"`
-	Tags        []string `json:"tags,omitempty"` // MITRE ATT&CK tags, etc.
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
+	Tags        []string    `json:"tags,omitempty"`  // MITRE ATT&CK tags, etc.
+	Source      string      `json:"source"`          // "sigma" = predefined, "custom" = user-created
+	CreatedAt   string      `json:"created_at"`
+	UpdatedAt   string      `json:"updated_at"`
 }
 
 // Condition defines a single match condition within a rule.
 // Field can be: "message", "program", "hostname", "log_type", "raw_data", or any key in event.Fields.
 type Condition struct {
 	Field    string `json:"field"`    // field name to check
-	Operator string `json:"operator"` // "contains", "equals", "regex", "not_contains"
+	Operator string `json:"operator"` // "contains", "equals", "regex", "not_contains", "starts_with"
 	Value    string `json:"value"`    // value to match against
 }
 
@@ -67,25 +68,39 @@ type Alert struct {
 
 // Engine processes events and generates alerts based on rules.
 type Engine struct {
-	broker *broker.Broker
-	log    *zap.SugaredLogger
-	ctx    context.Context
-	cancel context.CancelFunc
+	broker   *broker.Broker
+	log      *zap.SugaredLogger
+	ctx      context.Context
+	cancel   context.CancelFunc
+	rulesDir string
 
 	mu    sync.RWMutex
 	rules []Rule
 }
 
 // New creates a new DetectionEngine.
-func New(msgBroker *broker.Broker, log *zap.SugaredLogger) *Engine {
+// rulesDir is the path to the directory containing Sigma YAML rule files.
+func New(msgBroker *broker.Broker, log *zap.SugaredLogger, rulesDir string) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 	e := &Engine{
-		broker: msgBroker,
-		log:    log,
-		ctx:    ctx,
-		cancel: cancel,
+		broker:   msgBroker,
+		log:      log,
+		ctx:      ctx,
+		cancel:   cancel,
+		rulesDir: rulesDir,
 	}
-	e.rules = DefaultRules()
+
+	// Load predefined Sigma rules from the rules directory
+	if rulesDir != "" {
+		rules, err := LoadRulesFromDir(rulesDir, "sigma")
+		if err != nil {
+			log.Warnw("Failed to load rules from directory", "dir", rulesDir, "error", err)
+		} else {
+			e.rules = rules
+			log.Infow("Loaded Sigma rules from YAML", "count", len(rules), "dir", rulesDir)
+		}
+	}
+
 	return e
 }
 
@@ -109,8 +124,39 @@ func (e *Engine) AddRule(r Rule) {
 	if r.CreatedAt == "" {
 		r.CreatedAt = now
 	}
+	if r.Source == "" {
+		r.Source = "custom"
+	}
 	r.UpdatedAt = now
 	e.rules = append(e.rules, r)
+}
+
+// ImportRulesYAML parses YAML bytes and adds all parsed rules to the engine.
+// Returns the count of successfully imported rules.
+func (e *Engine) ImportRulesYAML(data []byte) (int, error) {
+	rules, err := ParseRulesYAML(data, "custom")
+	if err != nil {
+		return 0, err
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	count := 0
+	for _, r := range rules {
+		if r.ID == "" {
+			r.ID = "rule-" + uuid.New().String()[:8]
+		}
+		if r.CreatedAt == "" {
+			r.CreatedAt = now
+		}
+		r.UpdatedAt = now
+		r.Source = "custom"
+		e.rules = append(e.rules, r)
+		count++
+	}
+	return count, nil
 }
 
 // UpdateRule replaces a rule by ID. Returns false if not found.
@@ -121,6 +167,7 @@ func (e *Engine) UpdateRule(id string, updated Rule) bool {
 		if r.ID == id {
 			updated.ID = id
 			updated.CreatedAt = r.CreatedAt
+			updated.Source = r.Source
 			updated.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 			e.rules[i] = updated
 			return true
@@ -257,6 +304,8 @@ func (e *Engine) matchCondition(event *pb.Event, cond Condition) bool {
 		return re.MatchString(fieldValue)
 	case "starts_with":
 		return strings.HasPrefix(strings.ToLower(fieldValue), strings.ToLower(cond.Value))
+	case "ends_with":
+		return strings.HasSuffix(strings.ToLower(fieldValue), strings.ToLower(cond.Value))
 	default:
 		return false
 	}

@@ -18,6 +18,7 @@ type Config struct {
 	NATS       NATSConfig       `mapstructure:"nats"`
 	JWT        JWTConfig        `mapstructure:"jwt"`
 	LogLevel   string           `mapstructure:"log_level"`
+	RulesDir   string           `mapstructure:"rules_dir"`
 }
 
 // CAConfig holds Certificate Authority settings.
@@ -86,6 +87,9 @@ func Load() (*Config, error) {
 	// JWT defaults
 	v.SetDefault("jwt.access_token_ttl", "1h")
 	v.SetDefault("jwt.refresh_token_ttl", "168h")
+
+	// Rules directory
+	v.SetDefault("rules_dir", "/var/sentinel/rules/sigma")
 
 	// Config file
 	v.SetConfigName("sentinel-server")

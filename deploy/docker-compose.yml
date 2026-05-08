@@ -23,9 +23,11 @@ services:
       - SENTINEL_NATS_EMBEDDED=true
       - SENTINEL_NATS_DATA_DIR=/var/sentinel/nats
       - SENTINEL_JWT_SIGNING_KEY=${JWT_SECRET:-change-me-in-production}
+      - SENTINEL_RULES_DIR=/var/sentinel/rules/sigma
     volumes:
       - sentinel-certs:/var/sentinel/certs
       - sentinel-nats:/var/sentinel/nats
+      - ../rules/sigma:/var/sentinel/rules/sigma:ro
     networks:
       - sentinel-net
     depends_on:

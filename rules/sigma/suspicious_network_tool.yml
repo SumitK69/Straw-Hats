@@ -1,0 +1,22 @@
+title: Suspicious Network Tool Executed
+id: rule-suspicious-process
+status: stable
+description: A reconnaissance or network tool (nmap, nc, ncat, masscan) was executed
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.discovery
+  - attack.t1046
+  - recon
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    raw_data|re: "(?i)\\b(nmap|ncat|masscan|netcat)\\b"
+  condition: selection
+level: high
+enabled: true
+event_types:
+  - 1
+  - 4

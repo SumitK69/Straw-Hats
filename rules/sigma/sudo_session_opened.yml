@@ -1,0 +1,23 @@
+title: sudo Session Opened
+id: rule-sudo-session-opened
+status: stable
+description: A sudo session was opened (privilege escalation)
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.privilege_escalation
+  - attack.t1548.003
+  - sudo
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection_program:
+    program|equals: "sudo"
+  selection_message:
+    message|contains: "session opened"
+  condition: selection_program and selection_message
+level: low
+enabled: true
+event_types:
+  - 4

@@ -1,0 +1,21 @@
+title: systemd Service Failed
+id: rule-service-failed
+status: stable
+description: A systemd service entered a failed state
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.impact
+  - attack.t1489
+  - systemd
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    message|contains: "Failed to start"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 4

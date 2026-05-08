@@ -1,0 +1,21 @@
+title: Cron Job Modified
+id: rule-cron-job-added
+status: stable
+description: A crontab entry was added or modified (potential persistence)
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.persistence
+  - attack.t1053.003
+  - cron
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    program|equals: "crontab"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 4

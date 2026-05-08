@@ -1,0 +1,19 @@
+title: Firewall Allowed Connection
+id: rule-ufw-allow
+status: stable
+description: UFW/iptables explicitly allowed a connection
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - firewall
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    message|contains: "[UFW ALLOW]"
+  condition: selection
+level: informational
+enabled: false
+event_types:
+  - 4

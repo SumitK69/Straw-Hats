@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Server, Plus, X, Copy, Check, Clock, RefreshCw, Terminal, Key, Trash2 } from 'lucide-react'
+import { Server, Plus, X, Copy, Check, Clock, RefreshCw, Terminal, Key, Trash2, Pencil } from 'lucide-react'
 import './Agents.css'
 
 interface Agent {
   _id: string
   agent_id: string
   hostname: string
+  display_name?: string
   os: string
   arch: string
   version: string
@@ -42,6 +43,10 @@ export function Agents() {
   const [copied, setCopied] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [uninstallAgentId, setUninstallAgentId] = useState<string | null>(null)
+
+  // ── Rename state ──────────────────────────────────────────────
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -88,6 +93,49 @@ export function Agents() {
     }
   }
 
+  // ── Rename agent ────────────────────────────────────────────────
+  const startRename = (agent: Agent) => {
+    setRenamingId(agent.agent_id)
+    setRenameValue(agent.display_name || agent.hostname || '')
+  }
+
+  const cancelRename = () => {
+    setRenamingId(null)
+    setRenameValue('')
+  }
+
+  const saveRename = async (agentId: string) => {
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
+      cancelRename()
+      return
+    }
+
+    try {
+      await fetch(`/api/v1/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: trimmed })
+      })
+      setAgents(prev => prev.map(a =>
+        a.agent_id === agentId ? { ...a, display_name: trimmed } : a
+      ))
+    } catch (err) {
+      console.error('Failed to rename agent:', err)
+    } finally {
+      cancelRename()
+    }
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, agentId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      saveRename(agentId)
+    } else if (e.key === 'Escape') {
+      cancelRename()
+    }
+  }
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
     setCopied(label)
@@ -108,6 +156,10 @@ export function Agents() {
     const lastSeen = new Date(agent.last_seen)
     const diffMs = Date.now() - lastSeen.getTime()
     return diffMs < 60000 ? 'active' : 'offline'
+  }
+
+  const getDisplayName = (agent: Agent): string => {
+    return agent.display_name || agent.hostname || '—'
   }
 
   return (
@@ -146,6 +198,7 @@ export function Agents() {
               <thead>
                 <tr>
                   <th>Status</th>
+                  <th>Name</th>
                   <th>Hostname</th>
                   <th>Agent ID</th>
                   <th>OS / Arch</th>
@@ -158,6 +211,7 @@ export function Agents() {
               <tbody>
                 {agents.map((agent) => {
                   const status = getAgentStatus(agent)
+                  const isRenaming = renamingId === agent.agent_id
                   return (
                     <tr key={agent._id || agent.agent_id} className="animate-fade-in">
                       <td>
@@ -166,7 +220,34 @@ export function Agents() {
                           {status}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 600 }}>{agent.hostname || '—'}</td>
+                      <td>
+                        {isRenaming ? (
+                          <div className="rename-input-wrapper">
+                            <input
+                              type="text"
+                              className="rename-input"
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onKeyDown={e => handleRenameKeyDown(e, agent.agent_id)}
+                              onBlur={() => saveRename(agent.agent_id)}
+                              autoFocus
+                              placeholder="Enter agent name"
+                            />
+                          </div>
+                        ) : (
+                          <div className="agent-name-cell">
+                            <span className="agent-display-name">{getDisplayName(agent)}</span>
+                            <button
+                              className="rename-btn"
+                              onClick={() => startRename(agent)}
+                              title="Rename agent"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{agent.hostname || '—'}</td>
                       <td className="agent-id-cell">{(agent.agent_id || '').substring(0, 12)}…</td>
                       <td>
                         <span className="os-label">

@@ -1,0 +1,21 @@
+title: Failed sudo Attempt
+id: rule-sudo-failed
+status: stable
+description: User attempted sudo and was denied
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.privilege_escalation
+  - attack.t1548.003
+  - sudo
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    message|contains: "NOT in sudoers"
+  condition: selection
+level: high
+enabled: true
+event_types:
+  - 4

@@ -117,6 +117,63 @@
   font-size: 0.75rem;
 }
 
+/* ── Agent Name / Rename ──────────────────────────────────────────── */
+.agent-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-display-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rename-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  opacity: 0.5;
+  transition: all var(--transition-fast);
+}
+
+.agents-table tbody tr:hover .rename-btn {
+  opacity: 1;
+}
+
+.rename-btn:hover {
+  color: var(--accent-400, #818cf8);
+  background: var(--bg-hover);
+}
+
+.rename-input-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.rename-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-400, #818cf8);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  outline: none;
+  width: 140px;
+  transition: border-color var(--transition-fast);
+}
+
+.rename-input:focus {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
 /* ── Icon Buttons ──────────────────────────────────────────────────── */
 
 

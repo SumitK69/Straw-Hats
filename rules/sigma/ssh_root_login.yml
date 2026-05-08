@@ -1,0 +1,23 @@
+title: SSH Root Login
+id: rule-ssh-root-login
+status: stable
+description: Direct root login via SSH detected
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.valid_accounts
+  - attack.t1078.003
+  - SSH
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection_accepted:
+    message|contains: "Accepted"
+  selection_root:
+    message|contains: "root"
+  condition: selection_accepted and selection_root
+level: critical
+enabled: true
+event_types:
+  - 4

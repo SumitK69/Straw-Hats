@@ -1,297 +1,241 @@
+// Package detection provides rule loading from YAML files (Sigma-compatible format).
 package detection
 
-// DefaultRules returns the built-in SIEM detection rules.
-// These are standard rules that any SIEM should ship with out-of-the-box.
-// They match against the syslog/auth.log/kern.log events that the Sentinel agent collects.
-func DefaultRules() []Rule {
-	return []Rule{
-		// ─── Authentication & Access Rules ─────────────────────────────────
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
-		{
-			ID:          "rule-ssh-brute-force",
-			Name:        "SSH Brute Force Attempt",
-			Description: "Multiple failed SSH login attempts detected",
-			Severity:    SevHigh,
-			Enabled:     true,
-			EventTypes:  []int32{4}, // LOG
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "Failed password"},
-			},
-			Tags:      []string{"T1110", "MITRE:Credential-Access", "SSH"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-ssh-invalid-user",
-			Name:        "SSH Login with Invalid User",
-			Description: "SSH login attempt using a non-existent username",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "Invalid user"},
-			},
-			Tags:      []string{"T1078", "MITRE:Valid-Accounts", "SSH"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-ssh-root-login",
-			Name:        "SSH Root Login",
-			Description: "Direct root login via SSH detected",
-			Severity:    SevCritical,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "Accepted"},
-				{Field: "message", Operator: "contains", Value: "root"},
-			},
-			Tags:      []string{"T1078.003", "MITRE:Valid-Accounts", "SSH"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-ssh-accepted-publickey",
-			Name:        "SSH Public Key Authentication",
-			Description: "User logged in via SSH public key",
-			Severity:    SevInfo,
-			Enabled:     false, // Informational — disabled by default
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "Accepted publickey"},
-			},
-			Tags:      []string{"SSH", "authentication"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
+	"gopkg.in/yaml.v3"
+)
 
-		// ─── Privilege Escalation Rules ────────────────────────────────────
+// ── Sigma-compatible YAML rule schema ────────────────────────────────────
 
-		{
-			ID:          "rule-sudo-failed",
-			Name:        "Failed sudo Attempt",
-			Description: "User attempted sudo and was denied",
-			Severity:    SevHigh,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "NOT in sudoers"},
-			},
-			Tags:      []string{"T1548.003", "MITRE:Privilege-Escalation", "sudo"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-sudo-session-opened",
-			Name:        "sudo Session Opened",
-			Description: "A sudo session was opened (privilege escalation)",
-			Severity:    SevLow,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "program", Operator: "equals", Value: "sudo"},
-				{Field: "message", Operator: "contains", Value: "session opened"},
-			},
-			Tags:      []string{"T1548.003", "MITRE:Privilege-Escalation", "sudo"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-su-attempt",
-			Name:        "su Command Used",
-			Description: "User switch (su) command was used",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "program", Operator: "equals", Value: "su"},
-			},
-			Tags:      []string{"T1548", "MITRE:Privilege-Escalation"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-auth-failure",
-			Name:        "Authentication Failure",
-			Description: "A generic authentication failure occurred",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "authentication failure"},
-			},
-			Tags:      []string{"T1110", "MITRE:Credential-Access"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
+// SigmaRule represents a detection rule in Sigma-compatible YAML format.
+type SigmaRule struct {
+	Title       string            `yaml:"title"       json:"title"`
+	ID          string            `yaml:"id"          json:"id"`
+	Status      string            `yaml:"status"      json:"status"`
+	Description string            `yaml:"description" json:"description"`
+	Author      string            `yaml:"author"      json:"author"`
+	Date        string            `yaml:"date"        json:"date"`
+	Tags        []string          `yaml:"tags"        json:"tags"`
+	LogSource   SigmaLogSource    `yaml:"logsource"   json:"logsource"`
+	Detection   SigmaDetection    `yaml:"detection"   json:"detection"`
+	Level       string            `yaml:"level"       json:"level"`
+	Enabled     *bool             `yaml:"enabled"     json:"enabled"`
+	EventTypes  []int32           `yaml:"event_types" json:"event_types"`
+	Source      string            `yaml:"-"           json:"source"` // "sigma" or "custom"
+}
 
-		// ─── Firewall & Network Rules ─────────────────────────────────────
+// SigmaLogSource describes the log source for a rule.
+type SigmaLogSource struct {
+	Product  string `yaml:"product"  json:"product"`
+	Service  string `yaml:"service"  json:"service"`
+	Category string `yaml:"category" json:"category,omitempty"`
+}
 
-		{
-			ID:          "rule-ufw-block",
-			Name:        "Firewall Blocked Connection",
-			Description: "UFW/iptables blocked an incoming connection",
-			Severity:    SevLow,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "[UFW BLOCK]"},
-			},
-			Tags:      []string{"T1071", "MITRE:Command-And-Control", "firewall"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-ufw-allow",
-			Name:        "Firewall Allowed Connection",
-			Description: "UFW/iptables explicitly allowed a connection",
-			Severity:    SevInfo,
-			Enabled:     false,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "[UFW ALLOW]"},
-			},
-			Tags:      []string{"firewall"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
+// SigmaDetection holds the detection logic.
+// Selections are named field-match groups; Condition combines them with boolean logic.
+type SigmaDetection struct {
+	Selections map[string]map[string]interface{} `yaml:"-"       json:"selections,omitempty"`
+	Condition  string                            `yaml:"condition" json:"condition"`
+}
 
-		// ─── System & Service Rules ───────────────────────────────────────
-
-		{
-			ID:          "rule-service-failed",
-			Name:        "systemd Service Failed",
-			Description: "A systemd service entered a failed state",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "Failed to start"},
-			},
-			Tags:      []string{"T1489", "MITRE:Impact", "systemd"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-oom-killer",
-			Name:        "OOM Killer Invoked",
-			Description: "Kernel out-of-memory killer terminated a process",
-			Severity:    SevHigh,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "Out of memory"},
-			},
-			Tags:      []string{"T1499", "MITRE:Impact", "kernel"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-kernel-segfault",
-			Name:        "Process Segmentation Fault",
-			Description: "A process crashed with a segfault (possible exploit attempt)",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "segfault"},
-			},
-			Tags:      []string{"T1203", "MITRE:Execution", "kernel"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-
-		// ─── Suspicious Activity Rules ────────────────────────────────────
-
-		{
-			ID:          "rule-cron-job-added",
-			Name:        "Cron Job Modified",
-			Description: "A crontab entry was added or modified (potential persistence)",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "program", Operator: "equals", Value: "crontab"},
-			},
-			Tags:      []string{"T1053.003", "MITRE:Persistence", "cron"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-user-added",
-			Name:        "New User Account Created",
-			Description: "A new user account was added to the system",
-			Severity:    SevHigh,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "new user:"},
-			},
-			Tags:      []string{"T1136", "MITRE:Persistence", "account"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-group-changed",
-			Name:        "User Group Membership Changed",
-			Description: "A user was added to or removed from a group",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "program", Operator: "equals", Value: "usermod"},
-			},
-			Tags:      []string{"T1098", "MITRE:Persistence", "account"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-		{
-			ID:          "rule-password-changed",
-			Name:        "Password Changed",
-			Description: "A user password was changed",
-			Severity:    SevLow,
-			Enabled:     true,
-			EventTypes:  []int32{4},
-			Conditions: []Condition{
-				{Field: "message", Operator: "contains", Value: "password changed"},
-			},
-			Tags:      []string{"T1098", "MITRE:Persistence", "account"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-
-		// ─── Process / Execution Rules ────────────────────────────────────
-
-		{
-			ID:          "rule-suspicious-process",
-			Name:        "Suspicious Network Tool Executed",
-			Description: "A reconnaissance or network tool (nmap, nc, ncat, masscan) was executed",
-			Severity:    SevHigh,
-			Enabled:     true,
-			EventTypes:  []int32{1, 4}, // PROCESS or LOG
-			Conditions: []Condition{
-				{Field: "raw_data", Operator: "regex", Value: `(?i)\b(nmap|ncat|masscan|netcat)\b`},
-			},
-			Tags:      []string{"T1046", "MITRE:Discovery", "recon"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
-
-		// ─── File Integrity Rules ─────────────────────────────────────────
-
-		{
-			ID:          "rule-etc-modified",
-			Name:        "Sensitive File Modified in /etc",
-			Description: "A file in /etc was modified or deleted",
-			Severity:    SevMedium,
-			Enabled:     true,
-			EventTypes:  []int32{2}, // FILE
-			Conditions: []Condition{
-				{Field: "file", Operator: "starts_with", Value: "/etc/"},
-			},
-			Tags:      []string{"T1565", "MITRE:Impact", "FIM"},
-			CreatedAt: "2026-01-01T00:00:00Z",
-			UpdatedAt: "2026-01-01T00:00:00Z",
-		},
+// UnmarshalYAML custom-unmarshals the detection block.
+// It separates the "condition" key from the named selections.
+func (d *SigmaDetection) UnmarshalYAML(value *yaml.Node) error {
+	// First decode into a generic map
+	var raw map[string]interface{}
+	if err := value.Decode(&raw); err != nil {
+		return err
 	}
+
+	d.Selections = make(map[string]map[string]interface{})
+
+	for key, val := range raw {
+		if key == "condition" {
+			if s, ok := val.(string); ok {
+				d.Condition = s
+			}
+			continue
+		}
+		// Every other key is a selection name
+		switch v := val.(type) {
+		case map[string]interface{}:
+			d.Selections[key] = v
+		}
+	}
+	return nil
+}
+
+// ── Convert Sigma YAML to engine Rule ────────────────────────────────────
+
+// sigmaToRule converts a SigmaRule into the engine's internal Rule struct.
+func sigmaToRule(sigma SigmaRule) Rule {
+	// Map Sigma level names to our severity names
+	severity := mapLevel(sigma.Level)
+
+	// Build conditions from detection selections
+	conditions := buildConditions(sigma.Detection)
+
+	enabled := true
+	if sigma.Enabled != nil {
+		enabled = *sigma.Enabled
+	}
+
+	// Map Sigma tags to our tag format (strip "attack." prefix for display)
+	tags := make([]string, 0, len(sigma.Tags))
+	for _, t := range sigma.Tags {
+		tags = append(tags, t)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	return Rule{
+		ID:          sigma.ID,
+		Name:        sigma.Title,
+		Description: sigma.Description,
+		Severity:    severity,
+		Enabled:     enabled,
+		EventTypes:  sigma.EventTypes,
+		Conditions:  conditions,
+		Tags:        tags,
+		Source:      sigma.Source,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+}
+
+// mapLevel converts Sigma level names to our severity constants.
+func mapLevel(level string) string {
+	switch strings.ToLower(level) {
+	case "critical":
+		return SevCritical
+	case "high":
+		return SevHigh
+	case "medium":
+		return SevMedium
+	case "low":
+		return SevLow
+	case "informational", "info":
+		return SevInfo
+	default:
+		return SevMedium
+	}
+}
+
+// buildConditions converts Sigma detection selections into flat Condition slices.
+// This handles the subset of Sigma syntax that Sentinel supports:
+//   field|contains, field|equals, field|startswith, field|endswith, field|re
+// AND logic is applied across all selections referenced in the condition.
+func buildConditions(det SigmaDetection) []Condition {
+	var conditions []Condition
+
+	for _, sel := range det.Selections {
+		for fieldSpec, val := range sel {
+			field, operator := parseFieldSpec(fieldSpec)
+			value := fmt.Sprintf("%v", val)
+			conditions = append(conditions, Condition{
+				Field:    field,
+				Operator: operator,
+				Value:    value,
+			})
+		}
+	}
+
+	return conditions
+}
+
+// parseFieldSpec splits a Sigma field|modifier into (field, operator).
+func parseFieldSpec(spec string) (string, string) {
+	parts := strings.SplitN(spec, "|", 2)
+	field := parts[0]
+	if len(parts) == 1 {
+		return field, "contains" // default operator
+	}
+
+	switch parts[1] {
+	case "contains":
+		return field, "contains"
+	case "equals":
+		return field, "equals"
+	case "startswith":
+		return field, "starts_with"
+	case "endswith":
+		return field, "ends_with"
+	case "re":
+		return field, "regex"
+	default:
+		return field, "contains"
+	}
+}
+
+// ── YAML File Loader ─────────────────────────────────────────────────────
+
+// LoadRulesFromDir reads all .yml / .yaml files from a directory and returns Rules.
+func LoadRulesFromDir(dir string, source string) ([]Rule, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read rules directory %s: %w", dir, err)
+	}
+
+	var rules []Rule
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext != ".yml" && ext != ".yaml" {
+			continue
+		}
+
+		filePath := filepath.Join(dir, entry.Name())
+		loaded, err := LoadRulesFromFile(filePath, source)
+		if err != nil {
+			// Log but continue loading other files
+			fmt.Fprintf(os.Stderr, "WARN: skipping rule file %s: %v\n", filePath, err)
+			continue
+		}
+		rules = append(rules, loaded...)
+	}
+
+	return rules, nil
+}
+
+// LoadRulesFromFile parses a single YAML file into Rules.
+// A file may contain multiple YAML documents separated by ---.
+func LoadRulesFromFile(filePath string, source string) ([]Rule, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file %s: %w", filePath, err)
+	}
+
+	return ParseRulesYAML(data, source)
+}
+
+// ParseRulesYAML parses YAML bytes (possibly multi-document) into Rules.
+func ParseRulesYAML(data []byte, source string) ([]Rule, error) {
+	var rules []Rule
+
+	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
+	for {
+		var sigma SigmaRule
+		err := decoder.Decode(&sigma)
+		if err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return rules, fmt.Errorf("parse YAML: %w", err)
+		}
+		if sigma.ID == "" && sigma.Title == "" {
+			continue // skip empty documents
+		}
+		sigma.Source = source
+		rules = append(rules, sigmaToRule(sigma))
+	}
+
+	return rules, nil
 }

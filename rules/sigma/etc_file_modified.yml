@@ -1,0 +1,21 @@
+title: Sensitive File Modified in /etc
+id: rule-etc-modified
+status: stable
+description: A file in /etc was modified or deleted
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.impact
+  - attack.t1565
+  - FIM
+logsource:
+  product: linux
+  service: file_integrity
+detection:
+  selection:
+    file|startswith: "/etc/"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 2

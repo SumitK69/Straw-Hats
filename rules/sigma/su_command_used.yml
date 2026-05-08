@@ -1,0 +1,20 @@
+title: su Command Used
+id: rule-su-attempt
+status: stable
+description: User switch (su) command was used
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.privilege_escalation
+  - attack.t1548
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    program|equals: "su"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 4

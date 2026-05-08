@@ -1,0 +1,21 @@
+title: SSH Login with Invalid User
+id: rule-ssh-invalid-user
+status: stable
+description: SSH login attempt using a non-existent username
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.valid_accounts
+  - attack.t1078
+  - SSH
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    message|contains: "Invalid user"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 4

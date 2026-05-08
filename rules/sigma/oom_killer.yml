@@ -1,0 +1,21 @@
+title: OOM Killer Invoked
+id: rule-oom-killer
+status: stable
+description: Kernel out-of-memory killer terminated a process
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.impact
+  - attack.t1499
+  - kernel
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    message|contains: "Out of memory"
+  condition: selection
+level: high
+enabled: true
+event_types:
+  - 4

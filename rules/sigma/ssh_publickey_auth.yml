@@ -1,0 +1,20 @@
+title: SSH Public Key Authentication
+id: rule-ssh-accepted-publickey
+status: stable
+description: User logged in via SSH public key
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - SSH
+  - authentication
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    message|contains: "Accepted publickey"
+  condition: selection
+level: informational
+enabled: false
+event_types:
+  - 4

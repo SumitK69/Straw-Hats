@@ -1,0 +1,21 @@
+title: Process Segmentation Fault
+id: rule-kernel-segfault
+status: stable
+description: A process crashed with a segfault (possible exploit attempt)
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.execution
+  - attack.t1203
+  - kernel
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    message|contains: "segfault"
+  condition: selection
+level: medium
+enabled: true
+event_types:
+  - 4

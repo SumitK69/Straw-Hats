@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { BookOpen, RefreshCw, Shield, ToggleLeft, ToggleRight, Plus, X, Trash2, Edit } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { BookOpen, RefreshCw, Shield, ToggleLeft, ToggleRight, Plus, X, Trash2, Edit, Upload, FileText, Filter, ChevronDown } from 'lucide-react'
 import './Rules.css'
 
 interface Condition {
@@ -17,6 +17,7 @@ interface Rule {
   event_types: number[]
   conditions: Condition[]
   tags: string[]
+  source: string
   created_at: string
   updated_at: string
 }
@@ -29,12 +30,19 @@ const EVENT_TYPE_LABELS: Record<number, string> = {
   1: 'PROCESS', 2: 'FILE', 3: 'NETWORK', 4: 'LOG', 5: 'METRIC'
 }
 
+type SourceFilter = 'all' | 'sigma' | 'custom'
+
 export function Rules() {
   const [rules, setRules] = useState<Rule[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<Rule | null>(null)
-  
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
+  const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [tagInput, setTagInput] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   // Form State
   const [formData, setFormData] = useState<Partial<Rule>>({
     name: '',
@@ -43,7 +51,8 @@ export function Rules() {
     enabled: true,
     event_types: [],
     conditions: [],
-    tags: []
+    tags: [],
+    source: 'custom'
   })
 
   const resetForm = () => {
@@ -52,11 +61,13 @@ export function Rules() {
       description: '',
       severity: 'medium',
       enabled: true,
-      event_types: [],
+      event_types: [4],
       conditions: [{ field: 'message', operator: 'contains', value: '' }],
-      tags: []
+      tags: [],
+      source: 'custom'
     })
     setEditingRule(null)
+    setTagInput('')
   }
 
   const openModal = (rule?: Rule) => {
@@ -141,7 +152,67 @@ export function Rules() {
     }
   }
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadStatus(null)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/v1/rules/import', {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setUploadStatus({ type: 'success', message: json.message || `${json.count} rule(s) imported` })
+        fetchRules()
+      } else {
+        setUploadStatus({ type: 'error', message: json.error || 'Import failed' })
+      }
+    } catch (err) {
+      setUploadStatus({ type: 'error', message: 'Network error during upload' })
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleTagAdd = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      const tag = tagInput.trim().replace(/,$/,'')
+      if (tag && !(formData.tags || []).includes(tag)) {
+        setFormData({ ...formData, tags: [...(formData.tags || []), tag] })
+      }
+      setTagInput('')
+    }
+  }
+
+  const removeTag = (tag: string) => {
+    setFormData({ ...formData, tags: (formData.tags || []).filter(t => t !== tag) })
+  }
+
+  const toggleEventType = (et: number) => {
+    const current = formData.event_types || []
+    if (current.includes(et)) {
+      setFormData({ ...formData, event_types: current.filter(t => t !== et) })
+    } else {
+      setFormData({ ...formData, event_types: [...current, et] })
+    }
+  }
+
+  // Filtering
+  const filteredRules = rules.filter(r => {
+    if (sourceFilter === 'all') return true
+    return r.source === sourceFilter
+  })
+
   const enabledCount = rules.filter(r => r.enabled).length
+  const sigmaCount = rules.filter(r => r.source === 'sigma').length
+  const customCount = rules.filter(r => r.source === 'custom').length
 
   return (
     <div className="rules-page">
@@ -153,11 +224,17 @@ export function Rules() {
               <span>{rules.length} rules</span>
               <span>·</span>
               <span>{enabledCount} enabled</span>
+              <span>·</span>
+              <span className="source-count sigma">{sigmaCount} Sigma</span>
+              <span className="source-count custom">{customCount} Custom</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-secondary" onClick={() => { setLoading(true); fetchRules() }}>
               <RefreshCw size={14} /> Refresh
+            </button>
+            <button className="btn btn-secondary" onClick={() => setUploadModalOpen(true)}>
+              <Upload size={14} /> Import YAML
             </button>
             <button className="btn btn-primary" onClick={() => openModal()}>
               <Plus size={14} /> New Rule
@@ -165,23 +242,57 @@ export function Rules() {
           </div>
         </div>
 
+        {/* ── Source Filter Tabs ────────────────────────────────────── */}
+        <div className="rules-filter-bar">
+          <div className="filter-tabs">
+            <button
+              className={`filter-tab ${sourceFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setSourceFilter('all')}
+            >
+              <Filter size={12} /> All Rules
+              <span className="filter-count">{rules.length}</span>
+            </button>
+            <button
+              className={`filter-tab ${sourceFilter === 'sigma' ? 'active' : ''}`}
+              onClick={() => setSourceFilter('sigma')}
+            >
+              <Shield size={12} /> Sigma / Predefined
+              <span className="filter-count">{sigmaCount}</span>
+            </button>
+            <button
+              className={`filter-tab ${sourceFilter === 'custom' ? 'active' : ''}`}
+              onClick={() => setSourceFilter('custom')}
+            >
+              <FileText size={12} /> Custom
+              <span className="filter-count">{customCount}</span>
+            </button>
+          </div>
+        </div>
+
         {loading ? (
           <div className="loading-spinner"><div className="spinner" /></div>
-        ) : rules.length === 0 ? (
+        ) : filteredRules.length === 0 ? (
           <div className="rules-empty-state">
             <BookOpen size={40} style={{ opacity: 0.15 }} />
-            <p>No detection rules loaded</p>
-            <span>The server should auto-load default rules on startup</span>
+            <p>{sourceFilter === 'all' ? 'No detection rules loaded' : `No ${sourceFilter} rules found`}</p>
+            <span>
+              {sourceFilter === 'custom'
+                ? 'Click "New Rule" to create a custom rule or "Import YAML" to upload'
+                : 'The server loads Sigma rules from the rules/sigma/ directory on startup'}
+            </span>
           </div>
         ) : (
           <div className="rules-list">
-            {rules.map(rule => (
+            {filteredRules.map(rule => (
               <div key={rule.id} className={`rule-card ${rule.enabled ? '' : 'disabled'}`}>
                 <div className="rule-card-header">
                   <div className="rule-title-row">
                     <Shield size={14} className="rule-icon" />
                     <span className="rule-name">{rule.name}</span>
                     <span className={`severity-badge sev-${rule.severity}`}>{rule.severity}</span>
+                    <span className={`source-badge source-${rule.source || 'custom'}`}>
+                      {rule.source === 'sigma' ? 'SIGMA' : 'CUSTOM'}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button
@@ -264,6 +375,7 @@ export function Rules() {
                   required
                   value={formData.description} 
                   onChange={e => setFormData({...formData, description: e.target.value})} 
+                  placeholder="What does this rule detect?"
                 />
               </div>
 
@@ -281,6 +393,37 @@ export function Rules() {
                     <option value="critical">Critical</option>
                   </select>
                 </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select
+                    value={formData.enabled ? 'enabled' : 'disabled'}
+                    onChange={e => setFormData({...formData, enabled: e.target.value === 'enabled'})}
+                  >
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Event Types */}
+              <div className="form-group">
+                <label>Event Types</label>
+                <div className="event-type-selector">
+                  {Object.entries(EVENT_TYPE_LABELS).map(([key, label]) => {
+                    const num = parseInt(key)
+                    const selected = (formData.event_types || []).includes(num)
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`event-type-btn ${selected ? 'selected' : ''}`}
+                        onClick={() => toggleEventType(num)}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="form-group">
@@ -293,7 +436,7 @@ export function Rules() {
                         value={cond.field} 
                         onChange={e => {
                           const newConds = [...(formData.conditions || [])]
-                          newConds[idx].field = e.target.value
+                          newConds[idx] = { ...newConds[idx], field: e.target.value }
                           setFormData({...formData, conditions: newConds})
                         }} 
                         placeholder="Field (e.g. message)" 
@@ -302,7 +445,7 @@ export function Rules() {
                         value={cond.operator}
                         onChange={e => {
                           const newConds = [...(formData.conditions || [])]
-                          newConds[idx].operator = e.target.value
+                          newConds[idx] = { ...newConds[idx], operator: e.target.value }
                           setFormData({...formData, conditions: newConds})
                         }}
                       >
@@ -311,13 +454,14 @@ export function Rules() {
                         <option value="not_contains">not_contains</option>
                         <option value="regex">regex</option>
                         <option value="starts_with">starts_with</option>
+                        <option value="ends_with">ends_with</option>
                       </select>
                       <input 
                         type="text" 
                         value={cond.value} 
                         onChange={e => {
                           const newConds = [...(formData.conditions || [])]
-                          newConds[idx].value = e.target.value
+                          newConds[idx] = { ...newConds[idx], value: e.target.value }
                           setFormData({...formData, conditions: newConds})
                         }} 
                         placeholder="Value" 
@@ -347,11 +491,122 @@ export function Rules() {
                 </div>
               </div>
 
+              {/* Tags */}
+              <div className="form-group">
+                <label>Tags</label>
+                <div className="tag-input-wrapper">
+                  <div className="tag-input-chips">
+                    {(formData.tags || []).map((tag, i) => (
+                      <span key={i} className="tag-chip">
+                        {tag}
+                        <button type="button" onClick={() => removeTag(tag)}>
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={e => setTagInput(e.target.value)}
+                      onKeyDown={handleTagAdd}
+                      placeholder={formData.tags?.length ? '' : 'Type and press Enter to add tags'}
+                      className="tag-text-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Rule</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── YAML Import Modal ──────────────────────────────────────── */}
+      {uploadModalOpen && (
+        <div className="modal-overlay" onClick={() => { setUploadModalOpen(false); setUploadStatus(null) }}>
+          <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Import YAML Rules</h3>
+              <button className="modal-close" onClick={() => { setUploadModalOpen(false); setUploadStatus(null) }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="upload-section">
+              <div className="upload-info">
+                <p>
+                  Upload a <strong>.yml</strong> or <strong>.yaml</strong> file containing one or more detection rules 
+                  in Sigma-compatible format. Multiple rules can be separated with <code>---</code> in a single file.
+                </p>
+              </div>
+
+              <div 
+                className="upload-dropzone"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('dragover') }}
+                onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('dragover') }}
+                onDrop={e => {
+                  e.preventDefault()
+                  e.currentTarget.classList.remove('dragover')
+                  const file = e.dataTransfer.files[0]
+                  if (file && fileInputRef.current) {
+                    const dt = new DataTransfer()
+                    dt.items.add(file)
+                    fileInputRef.current.files = dt.files
+                    fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }))
+                  }
+                }}
+              >
+                <Upload size={32} style={{ opacity: 0.3 }} />
+                <p>Drag & drop a YAML file here, or click to browse</p>
+                <span className="upload-hint">.yml or .yaml files — Sigma-compatible format</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".yml,.yaml"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              {uploadStatus && (
+                <div className={`upload-status ${uploadStatus.type}`}>
+                  {uploadStatus.type === 'success' ? '✓' : '✗'} {uploadStatus.message}
+                </div>
+              )}
+
+              <div className="upload-example">
+                <div className="upload-example-header">
+                  <ChevronDown size={14} />
+                  <span>Example YAML Rule Format</span>
+                </div>
+                <pre className="yaml-preview">{`title: SSH Brute Force Attempt
+id: rule-ssh-brute-force
+description: Multiple failed SSH login attempts
+level: high
+enabled: true
+tags:
+  - attack.credential_access
+  - attack.t1110
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    message|contains: "Failed password"
+  condition: selection
+event_types:
+  - 4`}</pre>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => { setUploadModalOpen(false); setUploadStatus(null) }}>Close</button>
+            </div>
           </div>
         </div>
       )}

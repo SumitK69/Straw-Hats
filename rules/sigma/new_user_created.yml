@@ -1,0 +1,21 @@
+title: New User Account Created
+id: rule-user-added
+status: stable
+description: A new user account was added to the system
+author: SigmaHQ (adapted for Sentinel)
+date: 2024/01/01
+tags:
+  - attack.persistence
+  - attack.t1136
+  - account
+logsource:
+  product: linux
+  service: auth
+detection:
+  selection:
+    message|contains: "new user:"
+  condition: selection
+level: high
+enabled: true
+event_types:
+  - 4

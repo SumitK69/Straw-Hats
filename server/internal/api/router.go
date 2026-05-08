@@ -2,6 +2,8 @@
 package api
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -37,6 +39,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		{
 			agents.GET("", listAgentsHandler(osClient))
 			agents.GET("/:id", getAgentHandler())
+			agents.PATCH("/:id", renameAgentHandler(osClient))
 			agents.DELETE("/:id", deleteAgentHandler(osClient))
 		}
 
@@ -61,6 +64,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		{
 			rules.GET("", listRulesHandler(detEngine))
 			rules.POST("", createRuleHandler(detEngine))
+			rules.POST("/import", importRulesHandler(detEngine))
 			rules.PUT("/:id", updateRuleHandler(detEngine))
 			rules.DELETE("/:id", deleteRuleHandler(detEngine))
 		}
@@ -165,6 +169,62 @@ func deleteRuleHandler(engine *detection.Engine) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "rule deleted"})
+	}
+}
+
+// importRulesHandler accepts a YAML file upload and imports rules into the engine.
+func importRulesHandler(engine *detection.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Support both multipart file upload and raw YAML body
+		var yamlData []byte
+
+		file, _, err := c.Request.FormFile("file")
+		if err == nil {
+			defer file.Close()
+			yamlData, err = io.ReadAll(file)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read uploaded file: " + err.Error()})
+				return
+			}
+		} else {
+			// Try raw body
+			yamlData, err = io.ReadAll(c.Request.Body)
+			if err != nil || len(yamlData) == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "no YAML file or body provided"})
+				return
+			}
+		}
+
+		count, err := engine.ImportRulesYAML(yamlData)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse YAML: " + err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("%d rule(s) imported", count), "count": count})
+	}
+}
+
+// renameAgentHandler updates the display_name of an agent.
+func renameAgentHandler(osClient *store.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		var payload struct {
+			DisplayName string `json:"display_name"`
+		}
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+			return
+		}
+
+		update := map[string]interface{}{
+			"display_name": payload.DisplayName,
+		}
+		if err := osClient.UpdateDoc(c.Request.Context(), "sentinel-agents", id, update); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update agent: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "agent renamed", "display_name": payload.DisplayName})
 	}
 }
 
