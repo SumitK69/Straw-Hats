@@ -46,7 +46,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 			alerts.GET("", listAlertsHandler(osClient))
 			alerts.GET("/histogram", histogramHandler(osClient, "sentinel-alerts*", "@timestamp"))
 			alerts.GET("/:id", getAlertHandler())
-			alerts.PATCH("/:id", updateAlertHandler())
+			alerts.PATCH("/:id", updateAlertHandler(osClient))
 		}
 
 		// Events
@@ -72,6 +72,12 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 			dashboards.POST("", createDashboardHandler())
 			dashboards.PUT("/:id", updateDashboardHandler())
 			dashboards.DELETE("/:id", deleteDashboardHandler())
+		}
+		
+		// Dev endpoints
+		dev := v1.Group("/dev")
+		{
+			dev.POST("/purge-logs", purgeLogsHandler(osClient))
 		}
 	}
 
@@ -108,7 +114,7 @@ func deleteAgentHandler(osClient *store.Client) gin.HandlerFunc {
 	}
 }
 func getAlertHandler() gin.HandlerFunc    { return placeholder("get alert") }
-func updateAlertHandler() gin.HandlerFunc { return placeholder("update alert") }
+
 
 // ── Rules Handlers (connected to detection engine) ──────────────────
 

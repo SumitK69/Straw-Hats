@@ -63,6 +63,7 @@ export function Alerts() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [timeRange, setTimeRange] = useState(TIME_RANGES[2]) // Default 3d
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState('all') // 'all', 'open', 'closed'
   const [totalAlerts, setTotalAlerts] = useState(0)
 
   const fetchAlerts = useCallback(async () => {
@@ -98,6 +99,9 @@ export function Alerts() {
       const alertsParams = new URLSearchParams()
       alertsParams.append('from', alertsFromStr)
       alertsParams.append('to', alertsToStr)
+      if (statusFilter !== 'all') {
+        alertsParams.append('q', `status:${statusFilter}`)
+      }
 
       const histParams = new URLSearchParams()
       histParams.append('from', histFromStr)
@@ -124,7 +128,7 @@ export function Alerts() {
     } finally {
       setLoading(false)
     }
-  }, [timeRange, selectedBucket])
+  }, [timeRange, selectedBucket, statusFilter])
 
   useEffect(() => {
     fetchAlerts()
@@ -139,6 +143,22 @@ export function Alerts() {
       else next.add(id)
       return next
     })
+  }
+
+  const updateAlertStatus = async (id: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/v1/alerts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+      if (res.ok) {
+        // Optimistically update
+        setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a))
+      }
+    } catch (err) {
+      console.error('Failed to update alert status', err)
+    }
   }
 
   const criticalCount = alerts.filter(a => a.severity === 'critical').length
@@ -171,6 +191,17 @@ export function Alerts() {
                 style={{ background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: '0.8125rem' }}
               >
                 {TIME_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="status-filter-selector" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-md)', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: '0.8125rem' }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
               </select>
             </div>
             {selectedBucket && (
@@ -327,6 +358,17 @@ export function Alerts() {
                                     <span className="field-value">{alert.event_id || '—'}</span>
                                   </div>
                                 </div>
+                              </div>
+                              <div className="detail-section" style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+                                {(alert.status || 'open') === 'open' ? (
+                                  <button className="btn btn-secondary" onClick={() => updateAlertStatus(alert.id, 'closed')}>
+                                    Close Alert
+                                  </button>
+                                ) : (
+                                  <button className="btn btn-secondary" onClick={() => updateAlertStatus(alert.id, 'open')}>
+                                    Reopen Alert
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </td>

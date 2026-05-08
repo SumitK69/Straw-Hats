@@ -118,27 +118,8 @@
 }
 
 /* ── Icon Buttons ──────────────────────────────────────────────────── */
-.btn-icon {
-  background: transparent;
-  border: 1px solid var(--border-primary);
-  color: var(--text-tertiary);
-  padding: 5px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-}
-.btn-icon:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--text-tertiary);
-}
-.btn-icon-danger:hover {
-  background: var(--error-bg);
-  color: var(--error);
-  border-color: var(--error);
-}
+
+
 
 /* ─── Modal Overlay ────────────────────────────────────────────────── */
 .modal-overlay {

@@ -5,8 +5,6 @@ import { Alerts } from './pages/Alerts'
 import { Agents } from './pages/Agents'
 import { Events } from './pages/Events'
 import { Rules } from './pages/Rules'
-import { ThreatIntel } from './pages/ThreatIntel'
-import { Vulnerabilities } from './pages/Vulnerabilities'
 import { Settings } from './pages/Settings'
 import './index.css'
 
@@ -21,8 +19,6 @@ function App() {
           <Route path="/agents" element={<Agents />} />
           <Route path="/events" element={<Events />} />
           <Route path="/rules" element={<Rules />} />
-          <Route path="/threat-intel" element={<ThreatIntel />} />
-          <Route path="/vulnerabilities" element={<Vulnerabilities />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

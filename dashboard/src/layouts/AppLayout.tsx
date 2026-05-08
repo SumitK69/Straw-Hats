@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Bell, Server, BookOpen,
-  Bug, Globe, Settings, ChevronLeft, ChevronRight,
-  Search, User, ShieldAlert, ScrollText, Sun, Moon
+  Settings, ChevronLeft, ChevronRight,
+  Search, ShieldAlert, ScrollText, Sun, Moon
 } from 'lucide-react'
 import './AppLayout.css'
 
@@ -20,8 +20,6 @@ const navItems: NavItem[] = [
   { path: '/agents', label: 'Agents', icon: Server },
   { path: '/events', label: 'Events', icon: ScrollText },
   { path: '/rules', label: 'Rules', icon: BookOpen },
-  { path: '/threat-intel', label: 'Threat Intel', icon: Globe },
-  { path: '/vulnerabilities', label: 'Vulnerabilities', icon: Bug },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -110,13 +108,7 @@ export function AppLayout() {
             <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
-            <button className="header-btn notification-btn">
-              <Bell size={16} />
-              <span className="notification-dot" />
-            </button>
-            <button className="header-btn user-btn">
-              <User size={16} />
-            </button>
+
           </div>
         </header>
 

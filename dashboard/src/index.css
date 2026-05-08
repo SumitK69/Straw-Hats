@@ -294,9 +294,43 @@ a:hover {
   color: var(--error);
   border: 1px solid transparent;
 }
+
 .btn-danger:hover {
+
   border-color: var(--error);
 }
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  color: var(--text-tertiary);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.btn-icon-danger:hover {
+  background: var(--error-bg);
+  color: var(--error);
+  border-color: var(--error);
+}
+
 
 /* ─── Animations ───────────────────────────────────────────────────── */
 @keyframes fadeIn {

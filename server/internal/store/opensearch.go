@@ -284,3 +284,46 @@ func (c *Client) GetDoc(ctx context.Context, index, docID string) (map[string]in
 
 	return result, nil
 }
+
+// UpdateByQuery executes an update by query operation.
+func (c *Client) UpdateByQuery(ctx context.Context, index []string, queryBody []byte) error {
+	refreshTrue := true
+	req := opensearchapi.UpdateByQueryRequest{
+		Index:   index,
+		Body:    bytes.NewReader(queryBody),
+		Refresh: &refreshTrue,
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return fmt.Errorf("update by query error: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return fmt.Errorf("update by query returned error: %s", res.Status())
+	}
+
+	return nil
+}
+
+// DeleteIndex deletes an entire index or index pattern.
+func (c *Client) DeleteIndex(ctx context.Context, index []string) error {
+	req := opensearchapi.IndicesDeleteRequest{
+		Index: index,
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return fmt.Errorf("delete index: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 404 {
+		return nil // Already deleted or doesn't exist
+	}
+	if res.IsError() {
+		return fmt.Errorf("delete index error: %s", res.Status())
+	}
+	return nil
+}

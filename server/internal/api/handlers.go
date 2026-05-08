@@ -279,6 +279,27 @@ func countDocsWithQuery(ctx context.Context, osClient *store.Client, index strin
 	return 0
 }
 
+// purgeLogsHandler deletes all events and alerts from OpenSearch (Development Only).
+func purgeLogsHandler(osClient *store.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := c.Request.Context()
+
+		err1 := osClient.DeleteIndex(ctx, []string{"sentinel-events-*"})
+		err2 := osClient.DeleteIndex(ctx, []string{"sentinel-alerts-*"})
+
+		if err1 != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete events: %v", err1)})
+			return
+		}
+		if err2 != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to delete alerts: %v", err2)})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": "purged"})
+	}
+}
+
 func listAgentsHandler(osClient *store.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		searchOpenSearch(c, osClient, "sentinel-agents*", "last_seen")
@@ -298,5 +319,43 @@ func searchEventsHandler(osClient *store.Client) gin.HandlerFunc {
 			c.Request.URL.RawQuery += "&size=" + strconv.Itoa(500)
 		}
 		searchOpenSearch(c, osClient, "sentinel-events*", "@timestamp")
+	}
+}
+
+func updateAlertHandler(osClient *store.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		var payload struct {
+			Status string `json:"status"`
+		}
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+			return
+		}
+
+		query := map[string]interface{}{
+			"script": map[string]interface{}{
+				"source": "ctx._source.status = params.status",
+				"lang":   "painless",
+				"params": map[string]interface{}{
+					"status": payload.Status,
+				},
+			},
+			"query": map[string]interface{}{
+				"match": map[string]interface{}{
+					"id": id,
+				},
+			},
+		}
+
+		reqBody, _ := json.Marshal(query)
+		err := osClient.UpdateByQuery(c.Request.Context(), []string{"sentinel-alerts-*"}, reqBody)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update alert: " + err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "alert updated", "status": payload.Status})
 	}
 }
