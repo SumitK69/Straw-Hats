@@ -7,9 +7,16 @@ import {
 } from 'lucide-react'
 import './AppLayout.css'
 
-const navItems = [
+interface NavItem {
+  path: string
+  label: string
+  icon: any
+  badge?: string | number
+}
+
+const navItems: NavItem[] = [
   { path: '/overview', label: 'Overview', icon: LayoutDashboard },
-  { path: '/alerts', label: 'Alerts', icon: Bell, badge: 12 },
+  { path: '/alerts', label: 'Alerts', icon: Bell },
   { path: '/agents', label: 'Agents', icon: Server },
   { path: '/events', label: 'Events', icon: ScrollText },
   { path: '/rules', label: 'Rules', icon: BookOpen },

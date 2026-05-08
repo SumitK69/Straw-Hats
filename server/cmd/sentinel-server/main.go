@@ -103,7 +103,7 @@ func main() {
 	}()
 
 	// ── Start REST API server (dashboard API) ─────────────────────
-	router := api.NewRouter(cfg, osClient, certAuthority, log)
+	router := api.NewRouter(cfg, osClient, certAuthority, detEngine, log)
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.RESTPort),
 		Handler:      router,

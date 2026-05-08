@@ -9,11 +9,12 @@ import (
 
 	"github.com/sentinel-io/sentinel/server/internal/ca"
 	"github.com/sentinel-io/sentinel/server/internal/config"
+	"github.com/sentinel-io/sentinel/server/internal/detection"
 	"github.com/sentinel-io/sentinel/server/internal/store"
 )
 
 // NewRouter creates the REST API router with all route groups.
-func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuthority, log *zap.SugaredLogger) http.Handler {
+func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuthority, detEngine *detection.Engine, log *zap.SugaredLogger) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -50,13 +51,13 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 			events.GET("", searchEventsHandler(osClient))
 		}
 
-		// Rules
+		// Rules — connected to the detection engine
 		rules := v1.Group("/rules")
 		{
-			rules.GET("", listRulesHandler())
-			rules.POST("", createRuleHandler())
-			rules.PUT("/:id", updateRuleHandler())
-			rules.DELETE("/:id", deleteRuleHandler())
+			rules.GET("", listRulesHandler(detEngine))
+			rules.POST("", createRuleHandler(detEngine))
+			rules.PUT("/:id", updateRuleHandler(detEngine))
+			rules.DELETE("/:id", deleteRuleHandler(detEngine))
 		}
 
 		// Dashboard config
@@ -86,7 +87,7 @@ func corsMiddleware() gin.HandlerFunc {
 }
 
 // Placeholder handlers — will be implemented in later phases
-func getAgentHandler() gin.HandlerFunc        { return placeholder("get agent") }
+func getAgentHandler() gin.HandlerFunc { return placeholder("get agent") }
 func deleteAgentHandler(osClient *store.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -101,12 +102,63 @@ func deleteAgentHandler(osClient *store.Client) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "agent deleted", "agent_id": id})
 	}
 }
-func getAlertHandler() gin.HandlerFunc        { return placeholder("get alert") }
-func updateAlertHandler() gin.HandlerFunc     { return placeholder("update alert") }
-func listRulesHandler() gin.HandlerFunc       { return placeholder("list rules") }
-func createRuleHandler() gin.HandlerFunc      { return placeholder("create rule") }
-func updateRuleHandler() gin.HandlerFunc      { return placeholder("update rule") }
-func deleteRuleHandler() gin.HandlerFunc      { return placeholder("delete rule") }
+func getAlertHandler() gin.HandlerFunc    { return placeholder("get alert") }
+func updateAlertHandler() gin.HandlerFunc { return placeholder("update alert") }
+
+// ── Rules Handlers (connected to detection engine) ──────────────────
+
+func listRulesHandler(engine *detection.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rules := engine.GetRules()
+		c.JSON(http.StatusOK, gin.H{"data": rules, "count": len(rules)})
+	}
+}
+
+func createRuleHandler(engine *detection.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var rule detection.Rule
+		if err := c.ShouldBindJSON(&rule); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule payload: " + err.Error()})
+			return
+		}
+		if rule.Name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "rule name is required"})
+			return
+		}
+		engine.AddRule(rule)
+		c.JSON(http.StatusCreated, gin.H{"message": "rule created", "rule": rule})
+	}
+}
+
+func updateRuleHandler(engine *detection.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		var rule detection.Rule
+		if err := c.ShouldBindJSON(&rule); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rule payload: " + err.Error()})
+			return
+		}
+		if !engine.UpdateRule(id, rule) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "rule not found"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "rule updated"})
+	}
+}
+
+func deleteRuleHandler(engine *detection.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if !engine.DeleteRule(id) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "rule not found"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "rule deleted"})
+	}
+}
+
+// ── Dashboard placeholders ──────────────────────────────────────────
+
 func listDashboardsHandler() gin.HandlerFunc  { return placeholder("list dashboards") }
 func createDashboardHandler() gin.HandlerFunc { return placeholder("create dashboard") }
 func updateDashboardHandler() gin.HandlerFunc { return placeholder("update dashboard") }

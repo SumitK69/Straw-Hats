@@ -106,7 +106,7 @@ func main() {
 // It only returns when ctx is cancelled (i.e. on shutdown signal).
 func runEventLoop(ctx context.Context, cfg *config.Config, log *zap.SugaredLogger) {
 	backoff := 5 * time.Second
-	maxBackoff := 30 * time.Second
+	maxBackoff := 10 * time.Second
 
 	for {
 		select {
