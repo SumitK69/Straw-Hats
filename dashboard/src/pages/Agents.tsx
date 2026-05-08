@@ -41,6 +41,7 @@ export function Agents() {
   const [tokenLoading, setTokenLoading] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [uninstallAgentId, setUninstallAgentId] = useState<string | null>(null)
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -79,6 +80,7 @@ export function Agents() {
     try {
       await fetch(`/api/v1/agents/${agentId}`, { method: 'DELETE' })
       setAgents(prev => prev.filter(a => a.agent_id !== agentId))
+      setUninstallAgentId(agentId) // Show uninstall instructions
     } catch (err) {
       console.error('Failed to delete agent:', err)
     } finally {
@@ -295,6 +297,42 @@ export function Agents() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Uninstall Instructions Modal ─────────────────────────────── */}
+      {uninstallAgentId && (
+        <div className="modal-overlay" onClick={() => setUninstallAgentId(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ color: 'var(--warning)' }}>Agent Unenrolled</h3>
+              <button className="modal-close" onClick={() => setUninstallAgentId(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="token-section">
+              <div className="token-step" style={{ padding: '20px', background: 'rgba(235, 87, 87, 0.05)', borderRadius: 'var(--radius-md)' }}>
+                <p style={{ marginBottom: '16px', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Agent <strong>{uninstallAgentId.substring(0, 12)}</strong> has been removed from the server.
+                  However, the agent service might still be running on the host machine. 
+                  Run the following command on the agent host to completely stop and uninstall it:
+                </p>
+                <div className="command-block">
+                  <code>sudo systemctl stop sentinel-agent && sudo systemctl disable sentinel-agent && sudo rm -f /etc/systemd/system/sentinel-agent.service && sudo rm -rf /opt/sentinel && sudo systemctl daemon-reload</code>
+                  <button
+                    className={`copy-btn ${copied === 'uninstall' ? 'copied' : ''}`}
+                    onClick={() => copyToClipboard('sudo systemctl stop sentinel-agent && sudo systemctl disable sentinel-agent && sudo rm -f /etc/systemd/system/sentinel-agent.service && sudo rm -rf /opt/sentinel && sudo systemctl daemon-reload', 'uninstall')}
+                  >
+                    {copied === 'uninstall' ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button className="btn btn-secondary" onClick={() => setUninstallAgentId(null)}>Close</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
