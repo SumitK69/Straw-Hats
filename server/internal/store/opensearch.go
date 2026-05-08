@@ -256,3 +256,31 @@ func (c *Client) DeleteDoc(ctx context.Context, index, docID string) error {
 	}
 	return nil
 }
+
+// GetDoc retrieves a single document by ID. Returns nil, nil if not found.
+func (c *Client) GetDoc(ctx context.Context, index, docID string) (map[string]interface{}, error) {
+	req := opensearchapi.GetRequest{
+		Index:      index,
+		DocumentID: docID,
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return nil, fmt.Errorf("get doc: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 404 {
+		return nil, nil // Not found
+	}
+	if res.IsError() {
+		return nil, fmt.Errorf("get doc error: %s", res.Status())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode get response: %w", err)
+	}
+
+	return result, nil
+}

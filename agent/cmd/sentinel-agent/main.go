@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"strings"
@@ -172,6 +173,23 @@ func runEventLoop(ctx context.Context, cfg *config.Config, log *zap.SugaredLogge
 		// Always start the heartbeat routine to keep the agent 'active' in the UI
 		// even if there are no new logs being generated.
 		go sendHeartbeats(streamCtx, streamCancel, cfg.AgentID, stream, log)
+
+		// Listen for server responses and errors (e.g. agent deletion)
+		go func() {
+			for {
+				_, err := stream.Recv()
+				if err != nil {
+					if strings.Contains(err.Error(), "agent_deleted") {
+						log.Fatal("Agent was deleted from dashboard. Uninstalling...")
+						uninstallAgent(log)
+						os.Exit(0)
+					}
+					// Other errors mean the stream broke, cancel context
+					streamCancel()
+					return
+				}
+			}
+		}()
 
 		// Wait for the stream to break or context to cancel
 		<-streamCtx.Done()
@@ -394,4 +412,21 @@ func sendHeartbeats(ctx context.Context, cancelStream context.CancelFunc, agentI
 			}
 		}
 	}
+}
+
+// uninstallAgent completely removes the agent from the system
+func uninstallAgent(log *zap.SugaredLogger) {
+	log.Info("Uninstalling Sentinel Agent...")
+
+	// Stop and disable systemd service
+	if _, err := os.Stat("/etc/systemd/system/sentinel-agent.service"); err == nil {
+		exec.Command("systemctl", "stop", "sentinel-agent").Run()
+		exec.Command("systemctl", "disable", "sentinel-agent").Run()
+		os.Remove("/etc/systemd/system/sentinel-agent.service")
+		exec.Command("systemctl", "daemon-reload").Run()
+	}
+
+	// Remove installation directory
+	os.RemoveAll("/opt/sentinel")
+	log.Info("Uninstallation complete.")
 }

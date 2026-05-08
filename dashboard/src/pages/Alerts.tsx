@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Bell, RefreshCw, ChevronRight } from 'lucide-react'
+import { Bell, RefreshCw, ChevronRight, Clock } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell
+} from 'recharts'
 import './Alerts.css'
 
 interface AlertData {
@@ -17,6 +20,18 @@ interface AlertData {
   raw_data: string
   tags: string[]
 }
+
+interface HistogramBucket {
+  time: string
+  count: number
+}
+
+const TIME_RANGES = [
+  { label: 'Last 1 hour', value: '1h', interval: '1m' },
+  { label: 'Last 24 hours', value: '24h', interval: '1h' },
+  { label: 'Last 3 days', value: '3d', interval: '1h' },
+  { label: 'Last 7 days', value: '7d', interval: '12h' }
+]
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '—'
@@ -43,20 +58,73 @@ function timeAgo(dateStr: string): string {
 
 export function Alerts() {
   const [alerts, setAlerts] = useState<AlertData[]>([])
+  const [histogram, setHistogram] = useState<HistogramBucket[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [timeRange, setTimeRange] = useState(TIME_RANGES[2]) // Default 3d
+  const [selectedBucket, setSelectedBucket] = useState<string | null>(null)
+  const [totalAlerts, setTotalAlerts] = useState(0)
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/alerts')
-      const json = await res.json()
-      setAlerts(json.data || [])
+      const now = new Date()
+      let histFromDate = new Date()
+      
+      switch(timeRange.value) {
+        case '1h': histFromDate.setHours(now.getHours() - 1); break;
+        case '24h': histFromDate.setHours(now.getHours() - 24); break;
+        case '3d': histFromDate.setDate(now.getDate() - 3); break;
+        case '7d': histFromDate.setDate(now.getDate() - 7); break;
+      }
+      
+      const histFromStr = histFromDate.toISOString()
+      const histToStr = now.toISOString()
+
+      let alertsFromStr = histFromStr
+      let alertsToStr = histToStr
+
+      if (selectedBucket) {
+        alertsFromStr = selectedBucket
+        const fromDate = new Date(selectedBucket)
+        const toDate = new Date(fromDate)
+        switch(timeRange.interval) {
+          case '1m': toDate.setMinutes(toDate.getMinutes() + 1); break;
+          case '1h': toDate.setHours(toDate.getHours() + 1); break;
+          case '12h': toDate.setHours(toDate.getHours() + 12); break;
+        }
+        alertsToStr = toDate.toISOString()
+      }
+
+      const alertsParams = new URLSearchParams()
+      alertsParams.append('from', alertsFromStr)
+      alertsParams.append('to', alertsToStr)
+
+      const histParams = new URLSearchParams()
+      histParams.append('from', histFromStr)
+      histParams.append('to', histToStr)
+      histParams.append('interval', timeRange.interval)
+
+      const [alertsRes, histRes] = await Promise.all([
+        fetch(`/api/v1/alerts?${alertsParams.toString()}`),
+        fetch(`/api/v1/alerts/histogram?${histParams.toString()}`)
+      ])
+
+      if (alertsRes.ok) {
+        const alertsData = await alertsRes.json()
+        setAlerts(alertsData.data || [])
+        setTotalAlerts(alertsData.total || 0)
+      }
+
+      if (histRes.ok) {
+        const histData = await histRes.json()
+        setHistogram(histData.buckets || [])
+      }
     } catch (err) {
       console.error('Failed to fetch alerts:', err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [timeRange, selectedBucket])
 
   useEffect(() => {
     fetchAlerts()
@@ -83,7 +151,7 @@ export function Alerts() {
           <div>
             <h2>Alerts</h2>
             <div className="alerts-meta">
-              <span>{alerts.length} alert{alerts.length !== 1 ? 's' : ''}</span>
+              <span>{totalAlerts.toLocaleString()} alert{totalAlerts !== 1 ? 's' : ''}</span>
               {criticalCount > 0 && <><span>·</span><span className="text-critical">{criticalCount} critical</span></>}
               {highCount > 0 && <><span>·</span><span className="text-high">{highCount} high</span></>}
               <span>·</span>
@@ -91,7 +159,77 @@ export function Alerts() {
               <span>Auto-refresh 10s</span>
             </div>
           </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className="time-range-selector" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-md)', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Clock size={14} />
+              <select 
+                value={timeRange.value} 
+                onChange={(e) => {
+                  setTimeRange(TIME_RANGES.find(r => r.value === e.target.value) || TIME_RANGES[2])
+                  setSelectedBucket(null)
+                }}
+                style={{ background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: '0.8125rem' }}
+              >
+                {TIME_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            {selectedBucket && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => setSelectedBucket(null)}
+              >
+                Clear Filter
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Timeline Histogram */}
+        {!loading && histogram.length > 0 && (
+          <div className="alerts-histogram-container" style={{ height: '120px', marginBottom: '20px', borderBottom: '1px solid var(--border-primary)', paddingBottom: '20px' }}>
+             <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={histogram} margin={{ top: 5, right: 0, bottom: 0, left: 0 }}>
+                <XAxis 
+                  dataKey="time" 
+                  tickFormatter={(time) => new Date(time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  fontSize={10}
+                  tickMargin={5}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  cursor={{fill: 'var(--bg-hover)'}}
+                  contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem' }}
+                  labelFormatter={(label) => new Date(label).toLocaleString()}
+                />
+                <Bar 
+                  dataKey="count" 
+                  fill="var(--warning)" 
+                  radius={[2, 2, 0, 0]}
+                  onClick={(data: any) => {
+                    if (data && data.payload && data.payload.time) {
+                      setSelectedBucket(data.payload.time)
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {histogram.map((entry, index) => {
+                    const isSelected = selectedBucket === entry.time
+                    const isDimmed = selectedBucket && !isSelected
+                    return (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={isSelected ? "var(--warning)" : entry.count > 0 ? "var(--warning)" : "var(--text-tertiary)"} 
+                        style={{ opacity: isDimmed ? 0.3 : 1, transition: 'all 0.2s' }}
+                      />
+                    )
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {loading ? (
           <div className="loading-spinner"><div className="spinner" /></div>

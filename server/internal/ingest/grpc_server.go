@@ -162,19 +162,26 @@ func (s *GRPCServer) StreamEvents(stream pb.AgentTelemetryService_StreamEventsSe
 			agentID = batch.AgentId
 			lastUpdate = time.Now()
 			
-			go func(aid string) {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				now := time.Now().UTC().Format(time.RFC3339)
-				update := map[string]interface{}{
-					"agent_id":  aid,
-					"status":    "active",
-					"last_seen": now,
-				}
-				if err := s.store.UpdateDoc(ctx, "sentinel-agents", aid, update); err != nil {
-					s.log.Debugw("Failed to update agent last_seen", "agent_id", aid, "error", err)
-				}
-			}(agentID)
+			// Verify agent still exists in OpenSearch
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			doc, err := s.store.GetDoc(ctx, "sentinel-agents", agentID)
+			if err != nil || doc == nil {
+				cancel()
+				s.log.Warnw("Agent not found in database, terminating stream", "agent_id", agentID)
+				return status.Error(codes.Unauthenticated, "agent_deleted")
+			}
+			
+			// Update last_seen
+			now := time.Now().UTC().Format(time.RFC3339)
+			update := map[string]interface{}{
+				"agent_id":  agentID,
+				"status":    "active",
+				"last_seen": now,
+			}
+			if err := s.store.UpdateDoc(ctx, "sentinel-agents", agentID, update); err != nil {
+				s.log.Debugw("Failed to update agent last_seen", "agent_id", agentID, "error", err)
+			}
+			cancel()
 		}
 
 		// Process and queue events to NATS

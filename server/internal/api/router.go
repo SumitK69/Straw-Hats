@@ -29,6 +29,9 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		// Enrollment
 		v1.POST("/enrollment/token", generateTokenHandler(cfg.JWT.SigningKey))
 
+		// Overview stats
+		v1.GET("/overview/stats", overviewStatsHandler(osClient))
+
 		// Agents
 		agents := v1.Group("/agents")
 		{
@@ -41,6 +44,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		alerts := v1.Group("/alerts")
 		{
 			alerts.GET("", listAlertsHandler(osClient))
+			alerts.GET("/histogram", histogramHandler(osClient, "sentinel-alerts*", "@timestamp"))
 			alerts.GET("/:id", getAlertHandler())
 			alerts.PATCH("/:id", updateAlertHandler())
 		}
@@ -49,6 +53,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		events := v1.Group("/events")
 		{
 			events.GET("", searchEventsHandler(osClient))
+			events.GET("/histogram", histogramHandler(osClient, "sentinel-events*", "@timestamp"))
 		}
 
 		// Rules — connected to the detection engine
