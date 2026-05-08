@@ -1,15 +1,15 @@
-/* ─── Overview Page ─────────────────────────────────────────────────── */
+/* ─── Overview Page — Minimal B&W ──────────────────────────────────── */
 
 .overview-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
 }
 
 .stat-header {
@@ -19,29 +19,29 @@
 }
 
 .stat-icon-wrapper {
-  padding: 8px;
+  padding: 6px;
   border-radius: var(--radius-md);
-  background: var(--bg-active);
-  color: var(--accent-400);
+  background: var(--accent-subtle);
+  color: var(--text-secondary);
 }
 
 .charts-row {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .chart-card {
-  min-height: 320px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
 }
 
 .card-title {
-  font-size: 0.95rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .chart-placeholder {
@@ -50,34 +50,34 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   color: var(--text-tertiary);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .placeholder-icon {
   color: var(--text-tertiary);
-  opacity: 0.3;
+  opacity: 0.2;
 }
 
 .activity-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 40px 0;
   color: var(--text-tertiary);
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
 }
 
 .empty-hint {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-tertiary);
   opacity: 0.6;
 }

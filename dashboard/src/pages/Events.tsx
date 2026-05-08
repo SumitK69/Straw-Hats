@@ -81,26 +81,26 @@ export function Events() {
 
   return (
     <div className="events-page">
-      <div className="card" style={{ padding: '32px' }}>
+      <div className="card" style={{ padding: '28px' }}>
         <div className="events-header">
           <div>
-            <h2>Raw Logs & Events</h2>
+            <h2>Events</h2>
             <div className="events-meta">
               <span className="events-count">{events.length} event{events.length !== 1 ? 's' : ''}</span>
               <span>·</span>
-              <RefreshCw size={12} />
+              <RefreshCw size={10} />
               <span>Auto-refresh 10s</span>
             </div>
           </div>
-          <form className="search-bar" onSubmit={handleSearch}>
-            <Search size={16} />
+          <form className="events-search" onSubmit={handleSearch}>
+            <Search size={14} />
             <input
               type="text"
-              placeholder="Search logs (e.g. sshd, auth...)"
+              placeholder="Search logs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <button type="submit" className="btn btn-secondary">Search</button>
+            <button type="submit" className="btn btn-secondary" style={{ padding: '5px 12px', fontSize: '0.75rem' }}>Search</button>
           </form>
         </div>
 
@@ -110,20 +110,20 @@ export function Events() {
           </div>
         ) : events.length === 0 ? (
           <div className="events-empty-state">
-            <Terminal size={48} style={{ opacity: 0.2 }} />
+            <Terminal size={40} style={{ opacity: 0.15 }} />
             <p>No events found</p>
             <span>{searchQuery ? 'Try adjusting your search query' : 'Waiting for agents to send telemetry...'}</span>
           </div>
         ) : (
-          <div className="events-table-wrapper" style={{ marginTop: '24px' }}>
+          <div className="events-table-wrapper" style={{ marginTop: '20px' }}>
             <table className="events-table">
               <thead>
                 <tr>
-                  <th style={{ width: '40px' }}></th>
-                  <th style={{ width: '220px' }}>Timestamp</th>
-                  <th style={{ width: '150px' }}>Agent ID</th>
-                  <th style={{ width: '100px' }}>Type</th>
-                  <th>Message / Raw Data</th>
+                  <th style={{ width: '36px' }}></th>
+                  <th style={{ width: '200px' }}>Timestamp</th>
+                  <th style={{ width: '120px' }}>Agent</th>
+                  <th style={{ width: '90px' }}>Type</th>
+                  <th>Message</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +146,7 @@ export function Events() {
                     <React.Fragment key={evt._id}>
                       <tr className="event-row animate-fade-in" onClick={() => toggleRow(evt._id)}>
                         <td className="chevron-cell">
-                          <ChevronRight size={16} className={`chevron ${isExpanded ? 'expanded' : ''}`} />
+                          <ChevronRight size={14} className={`chevron ${isExpanded ? 'expanded' : ''}`} />
                         </td>
                         <td className="time-cell">{formatDate(evt['@timestamp'])}</td>
                         <td className="agent-cell" title={evt.agent_id}>

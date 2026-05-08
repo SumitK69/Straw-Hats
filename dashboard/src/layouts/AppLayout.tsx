@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Bell, Server, BookOpen,
   Bug, Globe, Settings, ChevronLeft, ChevronRight,
-  Search, User, ShieldAlert, ScrollText
+  Search, User, ShieldAlert, ScrollText, Sun, Moon
 } from 'lucide-react'
 import './AppLayout.css'
 
@@ -18,11 +18,25 @@ const navItems = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
+function getInitialTheme(): 'light' | 'dark' {
+  const stored = localStorage.getItem('sentinel-theme')
+  if (stored === 'light' || stored === 'dark') return stored
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
   const location = useLocation()
 
   const currentPage = navItems.find(item => item.path === location.pathname)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('sentinel-theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
 
   return (
     <div className={`app-layout ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -30,7 +44,7 @@ export function AppLayout() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo">
-            <ShieldAlert size={28} className="logo-icon" />
+            <ShieldAlert size={22} className="logo-icon" />
             {!collapsed && <span className="logo-text">SENTINEL</span>}
           </div>
           <button
@@ -38,7 +52,7 @@ export function AppLayout() {
             onClick={() => setCollapsed(!collapsed)}
             aria-label="Toggle sidebar"
           >
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
         </div>
 
@@ -52,7 +66,7 @@ export function AppLayout() {
               }
               title={collapsed ? item.label : undefined}
             >
-              <item.icon size={20} className="nav-icon" />
+              <item.icon size={18} className="nav-icon" />
               {!collapsed && (
                 <>
                   <span className="nav-label">{item.label}</span>
@@ -82,16 +96,19 @@ export function AppLayout() {
             <h1 className="page-title">{currentPage?.label || 'Sentinel'}</h1>
           </div>
           <div className="header-right">
-            <div className="search-bar">
-              <Search size={16} className="search-icon" />
-              <input type="text" placeholder="Search events, agents, alerts..." />
+            <div className="header-search">
+              <Search size={14} />
+              <input type="text" placeholder="Search..." />
             </div>
+            <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
             <button className="header-btn notification-btn">
-              <Bell size={18} />
+              <Bell size={16} />
               <span className="notification-dot" />
             </button>
             <button className="header-btn user-btn">
-              <User size={18} />
+              <User size={16} />
             </button>
           </div>
         </header>
