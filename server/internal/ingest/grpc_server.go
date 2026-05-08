@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"encoding/json"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/sentinel-io/sentinel/server/internal/broker"
 	"github.com/sentinel-io/sentinel/server/internal/ca"
 	"github.com/sentinel-io/sentinel/server/internal/config"
+	"github.com/sentinel-io/sentinel/server/internal/store"
 	pb "github.com/sentinel-io/sentinel/server/proto/sentinelpb"
 )
 
@@ -27,6 +29,7 @@ type GRPCServer struct {
 	cfg    *config.Config
 	ca     *ca.CertAuthority
 	broker *broker.Broker
+	store  *store.Client
 	log    *zap.SugaredLogger
 
 	pb.UnimplementedAgentEnrollmentServiceServer
@@ -34,11 +37,12 @@ type GRPCServer struct {
 }
 
 // NewGRPCServer creates a new gRPC server for agent telemetry.
-func NewGRPCServer(cfg *config.Config, certAuth *ca.CertAuthority, msgBroker *broker.Broker, log *zap.SugaredLogger) *GRPCServer {
+func NewGRPCServer(cfg *config.Config, certAuth *ca.CertAuthority, msgBroker *broker.Broker, osClient *store.Client, log *zap.SugaredLogger) *GRPCServer {
 	s := &GRPCServer{
 		cfg:    cfg,
 		ca:     certAuth,
 		broker: msgBroker,
+		store:  osClient,
 		log:    log,
 	}
 
@@ -101,6 +105,26 @@ func (s *GRPCServer) Enroll(ctx context.Context, req *pb.EnrollmentRequest) (*pb
 		return nil, status.Error(codes.Internal, "failed to issue certificate")
 	}
 
+	// Register agent in OpenSearch
+	now := time.Now().UTC().Format(time.RFC3339)
+	agentDoc := map[string]interface{}{
+		"agent_id":    agentID,
+		"hostname":    req.Fingerprint.Hostname,
+		"os":          req.Fingerprint.Os,
+		"arch":        req.Fingerprint.Arch,
+		"version":     req.AgentVersion,
+		"status":      "active",
+		"last_seen":   now,
+		"enrolled_at": now,
+	}
+
+	if err := s.store.IndexDoc(ctx, "sentinel-agents", agentID, agentDoc); err != nil {
+		s.log.Errorw("Failed to register agent in OpenSearch", "agent_id", agentID, "error", err)
+		// Non-fatal: enrollment still succeeds, the agent just won't appear in the dashboard yet
+	} else {
+		s.log.Infow("Agent registered in OpenSearch", "agent_id", agentID)
+	}
+
 	serverAddr := fmt.Sprintf("sentinel-server:%d", s.cfg.GRPCPort)
 
 	return &pb.EnrollmentResponse{
@@ -118,6 +142,9 @@ func (s *GRPCServer) Enroll(ctx context.Context, req *pb.EnrollmentRequest) (*pb
 func (s *GRPCServer) StreamEvents(stream pb.AgentTelemetryService_StreamEventsServer) error {
 	s.log.Info("Agent stream connected")
 
+	var agentID string
+	var lastUpdate time.Time
+
 	for {
 		batch, err := stream.Recv()
 		if err == io.EOF {
@@ -129,6 +156,26 @@ func (s *GRPCServer) StreamEvents(stream pb.AgentTelemetryService_StreamEventsSe
 		}
 
 		s.log.Debugw("Received event batch", "agent_id", batch.AgentId, "events_count", len(batch.Events))
+
+		// Update agent last_seen periodically (e.g., every 30 seconds)
+		if batch.AgentId != "" && time.Since(lastUpdate) > 30*time.Second {
+			agentID = batch.AgentId
+			lastUpdate = time.Now()
+			
+			go func(aid string) {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				now := time.Now().UTC().Format(time.RFC3339)
+				update := map[string]interface{}{
+					"agent_id":  aid,
+					"status":    "active",
+					"last_seen": now,
+				}
+				if err := s.store.UpdateDoc(ctx, "sentinel-agents", aid, update); err != nil {
+					s.log.Debugw("Failed to update agent last_seen", "agent_id", aid, "error", err)
+				}
+			}(agentID)
+		}
 
 		// Process and queue events to NATS
 		for _, e := range batch.Events {

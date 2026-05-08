@@ -11,12 +11,12 @@ services:
     container_name: sentinel-server
     restart: unless-stopped
     ports:
-      - "${GRPC_PORT:-4222}:4222"    # Agent gRPC ingest
-      - "${REST_PORT:-8443}:8443"    # REST + WebSocket API
+      - "${GRPC_PORT:-4222}:4222" # Agent gRPC ingest
+      - "${REST_PORT:-8443}:8443" # REST + WebSocket API
     environment:
       - SENTINEL_GRPC_PORT=4222
       - SENTINEL_REST_PORT=8443
-      - SENTINEL_OPENSEARCH_ADDRESSES=https://opensearch:9200
+      - SENTINEL_OPENSEARCH_ADDRESSES=http://opensearch:9200
       - SENTINEL_OPENSEARCH_USERNAME=${OPENSEARCH_USER:-admin}
       - SENTINEL_OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD:-Sentinel_P@ss_2025}
       - SENTINEL_CA_CERT_DIR=/var/sentinel/certs
@@ -32,7 +32,7 @@ services:
       opensearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8443/api/v1/health"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8443/api/v1/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -50,7 +50,7 @@ services:
       - bootstrap.memory_lock=true
       - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD:-Sentinel_P@ss_2025}
-      - plugins.security.disabled=false
+      - plugins.security.disabled=true
     ulimits:
       memlock:
         soft: -1
@@ -63,13 +63,29 @@ services:
     networks:
       - sentinel-net
     ports:
-      - "9200:9200"  # Expose for debugging; remove in production
+      - "9200:9200" # Expose for debugging; remove in production
     healthcheck:
-      test: ["CMD-SHELL", "curl -sk https://localhost:9200 -u admin:${OPENSEARCH_PASSWORD:-Sentinel_P@ss_2025} | grep -q 'sentinel-cluster'"]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'sentinel-cluster'" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 45s
+
+  # ── OpenSearch Dashboards (UI) ────────────────────────────────────
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.17.0
+    container_name: sentinel-dashboards
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    networks:
+      - sentinel-net
+    depends_on:
+      opensearch:
+        condition: service_healthy
 
   # ── Sentinel Dashboard (React + nginx) ───────────────────────────
   sentinel-dashboard:
@@ -94,11 +110,11 @@ services:
     container_name: sentinel-anomaly-engine
     restart: unless-stopped
     ports:
-      - "50051:50051"  # Internal only in production
+      - "50051:50051" # Internal only in production
     networks:
       - sentinel-net
     healthcheck:
-      test: ["CMD", "python3", "-c", "import httpx; r=httpx.get('http://localhost:50051/health'); exit(0 if r.status_code==200 else 1)"]
+      test: [ "CMD", "python3", "-c", "import httpx; r=httpx.get('http://localhost:50051/health'); exit(0 if r.status_code==200 else 1)" ]
       interval: 30s
       timeout: 10s
       retries: 3

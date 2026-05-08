@@ -129,9 +129,16 @@ func Enroll(cfg *config.Config, tokenStr string) error {
 		return fmt.Errorf("failed to write CA cert: %w", err)
 	}
 
-	// Update config with server address
+	// Update config with server address and agent ID
 	cfg.ServerAddress = resp.ServerAddress
-	// Normally we would write this back to sentinel-agent.yaml here.
+	cfg.AgentID = resp.AgentId
+
+	// Write config file so the systemd service can pick it up
+	configYaml := fmt.Sprintf("agent_id: %s\nserver_address: %s\n", resp.AgentId, resp.ServerAddress)
+	os.MkdirAll("/opt/sentinel", 0755)
+	if err := os.WriteFile("/opt/sentinel/sentinel-agent.yaml", []byte(configYaml), 0644); err != nil {
+		fmt.Printf("Warning: failed to write config file: %v\n", err)
+	}
 
 	fmt.Printf("Successfully enrolled agent %s\n", resp.AgentId)
 	return nil

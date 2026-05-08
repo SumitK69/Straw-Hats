@@ -33,7 +33,7 @@ func NewRouter(cfg *config.Config, osClient *store.Client, certAuth *ca.CertAuth
 		{
 			agents.GET("", listAgentsHandler(osClient))
 			agents.GET("/:id", getAgentHandler())
-			agents.DELETE("/:id", deleteAgentHandler())
+			agents.DELETE("/:id", deleteAgentHandler(osClient))
 		}
 
 		// Alerts
@@ -87,7 +87,20 @@ func corsMiddleware() gin.HandlerFunc {
 
 // Placeholder handlers — will be implemented in later phases
 func getAgentHandler() gin.HandlerFunc        { return placeholder("get agent") }
-func deleteAgentHandler() gin.HandlerFunc     { return placeholder("delete agent") }
+func deleteAgentHandler(osClient *store.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "agent id is required"})
+			return
+		}
+		if err := osClient.DeleteDoc(c.Request.Context(), "sentinel-agents", id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete agent: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "agent deleted", "agent_id": id})
+	}
+}
 func getAlertHandler() gin.HandlerFunc        { return placeholder("get alert") }
 func updateAlertHandler() gin.HandlerFunc     { return placeholder("update alert") }
 func listRulesHandler() gin.HandlerFunc       { return placeholder("list rules") }

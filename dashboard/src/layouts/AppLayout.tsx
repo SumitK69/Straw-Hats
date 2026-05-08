@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Bell, Server, BookOpen,
   Bug, Globe, Settings, ChevronLeft, ChevronRight,
-  Search, User, ShieldAlert
+  Search, User, ShieldAlert, ScrollText
 } from 'lucide-react'
 import './AppLayout.css'
 
@@ -11,6 +11,7 @@ const navItems = [
   { path: '/overview', label: 'Overview', icon: LayoutDashboard },
   { path: '/alerts', label: 'Alerts', icon: Bell, badge: 12 },
   { path: '/agents', label: 'Agents', icon: Server },
+  { path: '/events', label: 'Events', icon: ScrollText },
   { path: '/rules', label: 'Rules', icon: BookOpen },
   { path: '/threat-intel', label: 'Threat Intel', icon: Globe },
   { path: '/vulnerabilities', label: 'Vulnerabilities', icon: Bug },

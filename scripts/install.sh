@@ -58,10 +58,18 @@ echo "[1/4] Downloading Sentinel Agent for $OS/$ARCH..."
 mkdir -p /opt/sentinel/bin
 echo "Simulating download... (Phase 1 MVP)"
 # For local testing, we assume the binary is already built or will be copied
-# Copying from local path if it exists
-if [ -f "./agent/sentinel-agent" ]; then
-    cp ./agent/sentinel-agent /opt/sentinel/bin/sentinel-agent
+# Resolve project root relative to script location
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+if [ -f "$PROJECT_ROOT/agent/sentinel-agent" ]; then
+    # Stop the service if it's running to prevent "Text file busy" error
+    systemctl stop sentinel-agent 2>/dev/null || true
+    rm -f /opt/sentinel/bin/sentinel-agent
+    cp "$PROJECT_ROOT/agent/sentinel-agent" /opt/sentinel/bin/sentinel-agent
     chmod +x /opt/sentinel/bin/sentinel-agent
+elif [ -f "/opt/sentinel/bin/sentinel-agent" ] && [ -s "/opt/sentinel/bin/sentinel-agent" ]; then
+    echo "Using existing agent binary at /opt/sentinel/bin/sentinel-agent"
 else
     echo "Creating dummy binary for testing..."
     touch /opt/sentinel/bin/sentinel-agent
@@ -91,8 +99,7 @@ EOF
 
 echo "[4/4] Starting agent service..."
 systemctl daemon-reload
-# systemctl enable --now sentinel-agent (commented out for local testing)
-echo "Systemd service configured (not started in testing mode)."
+systemctl enable --now sentinel-agent
 
 echo "--------------------------------------"
 echo "✅ Installation complete! The agent is now enrolled and running."

@@ -90,7 +90,7 @@ func main() {
 	}
 
 	// ── Start gRPC server (agent telemetry ingest) ────────────────
-	grpcServer := ingest.NewGRPCServer(cfg, certAuthority, msgBroker, log)
+	grpcServer := ingest.NewGRPCServer(cfg, certAuthority, msgBroker, osClient, log)
 	grpcLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC port %d: %v", cfg.GRPCPort, err)

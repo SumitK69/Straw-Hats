@@ -34,20 +34,27 @@ Sentinel is a fully open-source **SIEM** (Security Information & Event Managemen
 
 ## 🚀 Quick Start
 
-### Server (Docker Compose)
+### 1. Start the Server
+Deploy the Sentinel stack using Docker Compose:
 ```bash
 cd deploy
 cp .env.example .env
-docker compose up -d
+docker compose up
 ```
 
-### Agent (One-liner)
+### 2. Access the Dashboard
+Open `http://localhost:3000` in your browser after the services have started.
+
+### 3. Enroll an Agent
+To start monitoring a machine, you must install the lightweight Sentinel agent:
+
+1. In the Dashboard, navigate to the **Agents** page in the sidebar.
+2. Click the **Add Agent** button.
+3. Copy the generated enrollment command, which includes your unique `SENTINEL_TOKEN`.
+4. Run the one-liner on the target endpoint:
 ```bash
-curl -sL https://get.sentinel.io | SENTINEL_TOKEN=<token> bash
+curl -sL https://get.sentinel.io | SENTINEL_TOKEN=<your_token_here> bash
 ```
-
-### Dashboard
-Open `http://localhost:3000` after server starts.
 
 ## 🏗 Architecture
 

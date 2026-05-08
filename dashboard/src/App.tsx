@@ -3,6 +3,7 @@ import { AppLayout } from './layouts/AppLayout'
 import { Overview } from './pages/Overview'
 import { Alerts } from './pages/Alerts'
 import { Agents } from './pages/Agents'
+import { Events } from './pages/Events'
 import { Rules } from './pages/Rules'
 import { ThreatIntel } from './pages/ThreatIntel'
 import { Vulnerabilities } from './pages/Vulnerabilities'
@@ -18,6 +19,7 @@ function App() {
           <Route path="/overview" element={<Overview />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/agents" element={<Agents />} />
+          <Route path="/events" element={<Events />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/threat-intel" element={<ThreatIntel />} />
           <Route path="/vulnerabilities" element={<Vulnerabilities />} />

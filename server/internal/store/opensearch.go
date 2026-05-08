@@ -181,3 +181,78 @@ func (c *Client) Search(ctx context.Context, index string, queryBody []byte) (ma
 
 	return result, nil
 }
+
+// IndexDoc upserts a single document by ID into the given index.
+func (c *Client) IndexDoc(ctx context.Context, index, docID string, doc map[string]interface{}) error {
+	body, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("marshal doc: %w", err)
+	}
+
+	req := opensearchapi.IndexRequest{
+		Index:      index,
+		DocumentID: docID,
+		Body:       strings.NewReader(string(body)),
+		Refresh:    "true",
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return fmt.Errorf("index doc: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return fmt.Errorf("index doc error: %s", res.Status())
+	}
+	return nil
+}
+
+// UpdateDoc updates specific fields of an existing document by ID.
+func (c *Client) UpdateDoc(ctx context.Context, index, docID string, doc map[string]interface{}) error {
+	updateBody := map[string]interface{}{
+		"doc": doc,
+	}
+	body, err := json.Marshal(updateBody)
+	if err != nil {
+		return fmt.Errorf("marshal update doc: %w", err)
+	}
+
+	req := opensearchapi.UpdateRequest{
+		Index:      index,
+		DocumentID: docID,
+		Body:       strings.NewReader(string(body)),
+		Refresh:    "true",
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return fmt.Errorf("update doc: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return fmt.Errorf("update doc error: %s", res.Status())
+	}
+	return nil
+}
+
+// DeleteDoc removes a document by ID from the given index.
+func (c *Client) DeleteDoc(ctx context.Context, index, docID string) error {
+	req := opensearchapi.DeleteRequest{
+		Index:      index,
+		DocumentID: docID,
+		Refresh:    "true",
+	}
+
+	res, err := req.Do(ctx, c.os)
+	if err != nil {
+		return fmt.Errorf("delete doc: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return fmt.Errorf("delete doc error: %s", res.Status())
+	}
+	return nil
+}
