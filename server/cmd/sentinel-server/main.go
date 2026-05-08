@@ -78,11 +78,7 @@ func main() {
 	log.Info("NATS Broker initialized")
 
 	// ── Start Detection Engine ────────────────────────────────────
-	rulesDir := cfg.RulesDir
-	if rulesDir == "" {
-		rulesDir = "/var/sentinel/rules/sigma"
-	}
-	detEngine := detection.New(msgBroker, log, rulesDir)
+	detEngine := detection.New(msgBroker, log, cfg.RulesDir, cfg.CustomRulesDir)
 	if err := detEngine.Start(); err != nil {
 		log.Fatalf("Failed to start Detection Engine: %v", err)
 	}

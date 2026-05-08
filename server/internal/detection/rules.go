@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -238,4 +239,14 @@ func ParseRulesYAML(data []byte, source string) ([]Rule, error) {
 	}
 
 	return rules, nil
+}
+
+// Slugify converts a string to a filename-friendly format (lowercase, spaces to underscores).
+func Slugify(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, " ", "_")
+	// Remove non-alphanumeric except underscores and dots
+	reg := regexp.MustCompile(`[^a-z0-9_\.]`)
+	s = reg.ReplaceAllString(s, "")
+	return s
 }

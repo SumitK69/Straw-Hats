@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -19,6 +20,7 @@ type Config struct {
 	JWT        JWTConfig        `mapstructure:"jwt"`
 	LogLevel   string           `mapstructure:"log_level"`
 	RulesDir   string           `mapstructure:"rules_dir"`
+	CustomRulesDir string       `mapstructure:"custom_rules_dir"`
 }
 
 // CAConfig holds Certificate Authority settings.
@@ -88,8 +90,29 @@ func Load() (*Config, error) {
 	v.SetDefault("jwt.access_token_ttl", "1h")
 	v.SetDefault("jwt.refresh_token_ttl", "168h")
 
-	// Rules directory
-	v.SetDefault("rules_dir", "/var/sentinel/rules/sigma")
+	// Rules directory — try local project folder first for dev convenience
+	rulesDir := "/var/sentinel/rules/sigma"
+	customRulesDir := "/var/sentinel/rules/custom"
+
+	if _, err := os.Stat("./rules/sigma"); err == nil {
+		rulesDir = "./rules/sigma"
+	} else if _, err := os.Stat("../rules/sigma"); err == nil {
+		rulesDir = "../rules/sigma"
+	}
+
+	if _, err := os.Stat("./rules/custom"); err == nil {
+		customRulesDir = "./rules/custom"
+	} else if _, err := os.Stat("../rules/custom"); err == nil {
+		customRulesDir = "../rules/custom"
+	} else {
+		// Fallback to rules/custom relative to wherever rules/sigma was found
+		if rulesDir != "/var/sentinel/rules/sigma" {
+			customRulesDir = strings.Replace(rulesDir, "sigma", "custom", 1)
+		}
+	}
+
+	v.SetDefault("rules_dir", rulesDir)
+	v.SetDefault("custom_rules_dir", customRulesDir)
 
 	// Config file
 	v.SetConfigName("sentinel-server")

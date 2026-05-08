@@ -1,0 +1,17 @@
+date: 2026/05/08
+description: User switch (su) command was used
+detection:
+    condition: selection
+    selection:
+        program|equals: su
+enabled: true
+event_types:
+    - 4
+id: rule-su-attempt
+level: medium
+logsource:
+    product: linux
+tags:
+    - attack.privilege_escalation
+    - attack.t1548
+title: su Command Used duplicate

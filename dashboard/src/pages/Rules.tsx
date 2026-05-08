@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { BookOpen, RefreshCw, Shield, ToggleLeft, ToggleRight, Plus, X, Trash2, Edit, Upload, FileText, Filter, ChevronDown } from 'lucide-react'
+import { BookOpen, RefreshCw, Shield, ToggleLeft, ToggleRight, Plus, X, Trash2, Edit, Upload, FileText, Filter } from 'lucide-react'
 import './Rules.css'
 
 interface Condition {
@@ -41,6 +41,7 @@ export function Rules() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [tagInput, setTagInput] = useState('')
+  const [yamlInput, setYamlInput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Form State
@@ -180,10 +181,32 @@ export function Rules() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const handleManualImport = async () => {
+    if (!yamlInput.trim()) return
+    setUploadStatus(null)
+    try {
+      const res = await fetch('/api/v1/rules/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-yaml' },
+        body: yamlInput,
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setUploadStatus({ type: 'success', message: json.message || `${json.count} rule(s) imported` })
+        setYamlInput('')
+        fetchRules()
+      } else {
+        setUploadStatus({ type: 'error', message: json.error || 'Import failed' })
+      }
+    } catch (err) {
+      setUploadStatus({ type: 'error', message: 'Network error during import' })
+    }
+  }
+
   const handleTagAdd = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      const tag = tagInput.trim().replace(/,$/,'')
+      const tag = tagInput.trim().replace(/,$/, '')
       if (tag && !(formData.tags || []).includes(tag)) {
         setFormData({ ...formData, tags: [...(formData.tags || []), tag] })
       }
@@ -355,26 +378,26 @@ export function Rules() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <form onSubmit={saveRule} className="rule-form">
               <div className="form-group">
                 <label>Rule Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
-                  value={formData.name} 
-                  onChange={e => setFormData({...formData, name: e.target.value})} 
+                  value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. SSH Brute Force Attempt"
                 />
               </div>
 
               <div className="form-group">
                 <label>Description</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
-                  value={formData.description} 
-                  onChange={e => setFormData({...formData, description: e.target.value})} 
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
                   placeholder="What does this rule detect?"
                 />
               </div>
@@ -382,9 +405,9 @@ export function Rules() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Severity</label>
-                  <select 
-                    value={formData.severity} 
-                    onChange={e => setFormData({...formData, severity: e.target.value})}
+                  <select
+                    value={formData.severity}
+                    onChange={e => setFormData({ ...formData, severity: e.target.value })}
                   >
                     <option value="info">Info</option>
                     <option value="low">Low</option>
@@ -397,7 +420,7 @@ export function Rules() {
                   <label>Status</label>
                   <select
                     value={formData.enabled ? 'enabled' : 'disabled'}
-                    onChange={e => setFormData({...formData, enabled: e.target.value === 'enabled'})}
+                    onChange={e => setFormData({ ...formData, enabled: e.target.value === 'enabled' })}
                   >
                     <option value="enabled">Enabled</option>
                     <option value="disabled">Disabled</option>
@@ -431,22 +454,22 @@ export function Rules() {
                 <div className="conditions-builder">
                   {(formData.conditions || []).map((cond, idx) => (
                     <div key={idx} className="condition-row">
-                      <input 
-                        type="text" 
-                        value={cond.field} 
+                      <input
+                        type="text"
+                        value={cond.field}
                         onChange={e => {
                           const newConds = [...(formData.conditions || [])]
                           newConds[idx] = { ...newConds[idx], field: e.target.value }
-                          setFormData({...formData, conditions: newConds})
-                        }} 
-                        placeholder="Field (e.g. message)" 
+                          setFormData({ ...formData, conditions: newConds })
+                        }}
+                        placeholder="Field (e.g. message)"
                       />
-                      <select 
+                      <select
                         value={cond.operator}
                         onChange={e => {
                           const newConds = [...(formData.conditions || [])]
                           newConds[idx] = { ...newConds[idx], operator: e.target.value }
-                          setFormData({...formData, conditions: newConds})
+                          setFormData({ ...formData, conditions: newConds })
                         }}
                       >
                         <option value="contains">contains</option>
@@ -456,33 +479,33 @@ export function Rules() {
                         <option value="starts_with">starts_with</option>
                         <option value="ends_with">ends_with</option>
                       </select>
-                      <input 
-                        type="text" 
-                        value={cond.value} 
+                      <input
+                        type="text"
+                        value={cond.value}
                         onChange={e => {
                           const newConds = [...(formData.conditions || [])]
                           newConds[idx] = { ...newConds[idx], value: e.target.value }
-                          setFormData({...formData, conditions: newConds})
-                        }} 
-                        placeholder="Value" 
+                          setFormData({ ...formData, conditions: newConds })
+                        }}
+                        placeholder="Value"
                       />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="btn-icon btn-icon-danger"
                         onClick={() => {
                           const newConds = formData.conditions?.filter((_, i) => i !== idx)
-                          setFormData({...formData, conditions: newConds})
+                          setFormData({ ...formData, conditions: newConds })
                         }}
                       >
                         <X size={14} />
                       </button>
                     </div>
                   ))}
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="btn btn-secondary btn-sm mt-2"
                     onClick={() => setFormData({
-                      ...formData, 
+                      ...formData,
                       conditions: [...(formData.conditions || []), { field: '', operator: 'contains', value: '' }]
                     })}
                   >
@@ -539,12 +562,12 @@ export function Rules() {
             <div className="upload-section">
               <div className="upload-info">
                 <p>
-                  Upload a <strong>.yml</strong> or <strong>.yaml</strong> file containing one or more detection rules 
+                  Upload a <strong>.yml</strong> or <strong>.yaml</strong> file containing one or more detection rules
                   in Sigma-compatible format. Multiple rules can be separated with <code>---</code> in a single file.
                 </p>
               </div>
 
-              <div 
+              <div
                 className="upload-dropzone"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('dragover') }}
@@ -579,28 +602,27 @@ export function Rules() {
                 </div>
               )}
 
-              <div className="upload-example">
-                <div className="upload-example-header">
-                  <ChevronDown size={14} />
-                  <span>Example YAML Rule Format</span>
+              <div className="upload-manual">
+                <div className="upload-manual-header">
+                  <FileText size={14} />
+                  <span>Enter YAML Rule Code Directly</span>
                 </div>
-                <pre className="yaml-preview">{`title: SSH Brute Force Attempt
-id: rule-ssh-brute-force
-description: Multiple failed SSH login attempts
-level: high
-enabled: true
-tags:
-  - attack.credential_access
-  - attack.t1110
-logsource:
-  product: linux
-  service: auth
-detection:
-  selection:
-    message|contains: "Failed password"
-  condition: selection
-event_types:
-  - 4`}</pre>
+                <textarea
+                  className="yaml-editor"
+                  value={yamlInput}
+                  onChange={e => setYamlInput(e.target.value)}
+                  placeholder={`title: My Custom Rule\nid: my-rule-id\ndescription: Detects something suspicious\n...`}
+                  rows={12}
+                />
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleManualImport}
+                    disabled={!yamlInput.trim()}
+                  >
+                    Save YAML Rule
+                  </button>
+                </div>
               </div>
             </div>
 

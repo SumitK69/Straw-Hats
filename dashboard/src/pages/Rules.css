@@ -584,3 +584,41 @@
   overflow-x: auto;
   white-space: pre;
 }
+
+.upload-manual {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-manual-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.yaml-editor {
+  width: 100%;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-code);
+  border: none;
+  resize: vertical;
+  outline: none;
+  min-height: 200px;
+}
+
+.yaml-editor:focus {
+  background: var(--bg-tertiary);
+}

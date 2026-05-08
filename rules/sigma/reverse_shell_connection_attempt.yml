@@ -1,0 +1,21 @@
+title: Reverse Shell Connection Attempt
+id: rule-reverse-shell-detected
+status: experimental
+description: Detects common reverse shell patterns in command execution logs, such as interactive bash shells redirected to network devices.
+author: Sentinel Team
+date: 2024/05/08
+tags:
+  - attack.execution
+  - attack.t1059.004
+logsource:
+  product: linux
+  service: syslog
+detection:
+  selection:
+    raw_data|re: "(?i)(bash\\s+-i\\s+>\\s*/dev/tcp/|nc\\s+-e\\s+/bin/sh|python.*import\\s+socket.*subprocess|perl\\s+-e\\s+'use\\s+Socket)"
+  condition: selection
+level: critical
+enabled: true
+event_types:
+  - 1
+  - 4

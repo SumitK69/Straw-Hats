@@ -10,7 +10,7 @@ FROM alpine:3.19
 RUN apk --no-cache add ca-certificates tzdata
 RUN adduser -D -u 1000 sentinel
 COPY --from=builder /build/sentinel-server /usr/local/bin/sentinel-server
-RUN mkdir -p /var/sentinel/certs /var/sentinel/nats /var/sentinel/data /var/sentinel/rules/sigma \
+RUN mkdir -p /var/sentinel/certs /var/sentinel/nats /var/sentinel/data /var/sentinel/rules/sigma /var/sentinel/rules/custom \
     && chown -R sentinel:sentinel /var/sentinel
 USER sentinel
 EXPOSE 4222 8443

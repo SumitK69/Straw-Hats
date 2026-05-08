@@ -24,10 +24,12 @@ services:
       - SENTINEL_NATS_DATA_DIR=/var/sentinel/nats
       - SENTINEL_JWT_SIGNING_KEY=${JWT_SECRET:-change-me-in-production}
       - SENTINEL_RULES_DIR=/var/sentinel/rules/sigma
+      - SENTINEL_CUSTOM_RULES_DIR=/var/sentinel/rules/custom
     volumes:
       - sentinel-certs:/var/sentinel/certs
       - sentinel-nats:/var/sentinel/nats
       - ../rules/sigma:/var/sentinel/rules/sigma:ro
+      - ../rules/custom:/var/sentinel/rules/custom:rw
     networks:
       - sentinel-net
     depends_on:

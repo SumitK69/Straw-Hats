@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/sentinel-io/sentinel/server/internal/broker"
 	pb "github.com/sentinel-io/sentinel/server/proto/sentinelpb"
+	"gopkg.in/yaml.v3"
 )
 
 // Severity levels for alerts.
@@ -72,7 +75,8 @@ type Engine struct {
 	log      *zap.SugaredLogger
 	ctx      context.Context
 	cancel   context.CancelFunc
-	rulesDir string
+	rulesDir       string
+	customRulesDir string
 
 	mu    sync.RWMutex
 	rules []Rule
@@ -80,24 +84,43 @@ type Engine struct {
 
 // New creates a new DetectionEngine.
 // rulesDir is the path to the directory containing Sigma YAML rule files.
-func New(msgBroker *broker.Broker, log *zap.SugaredLogger, rulesDir string) *Engine {
+func New(msgBroker *broker.Broker, log *zap.SugaredLogger, rulesDir, customRulesDir string) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 	e := &Engine{
-		broker:   msgBroker,
-		log:      log,
-		ctx:      ctx,
-		cancel:   cancel,
-		rulesDir: rulesDir,
+		broker:         msgBroker,
+		log:            log,
+		ctx:            ctx,
+		cancel:         cancel,
+		rulesDir:       rulesDir,
+		customRulesDir: customRulesDir,
 	}
 
-	// Load predefined Sigma rules from the rules directory
+	// Create custom rules directory if it doesn't exist
+	if customRulesDir != "" {
+		if err := os.MkdirAll(customRulesDir, 0755); err != nil {
+			log.Warnw("Failed to create custom rules directory", "dir", customRulesDir, "error", err)
+		}
+	}
+
+	// Load predefined Sigma rules
 	if rulesDir != "" {
 		rules, err := LoadRulesFromDir(rulesDir, "sigma")
 		if err != nil {
 			log.Warnw("Failed to load rules from directory", "dir", rulesDir, "error", err)
 		} else {
-			e.rules = rules
+			e.rules = append(e.rules, rules...)
 			log.Infow("Loaded Sigma rules from YAML", "count", len(rules), "dir", rulesDir)
+		}
+	}
+
+	// Load custom rules
+	if customRulesDir != "" && customRulesDir != rulesDir {
+		rules, err := LoadRulesFromDir(customRulesDir, "custom")
+		if err != nil {
+			log.Warnw("Failed to load custom rules from directory", "dir", customRulesDir, "error", err)
+		} else {
+			e.rules = append(e.rules, rules...)
+			log.Infow("Loaded custom rules from YAML", "count", len(rules), "dir", customRulesDir)
 		}
 	}
 
@@ -129,6 +152,9 @@ func (e *Engine) AddRule(r Rule) {
 	}
 	r.UpdatedAt = now
 	e.rules = append(e.rules, r)
+	
+	// Persist to disk
+	go e.saveRuleToDisk(r)
 }
 
 // ImportRulesYAML parses YAML bytes and adds all parsed rules to the engine.
@@ -137,6 +163,38 @@ func (e *Engine) ImportRulesYAML(data []byte) (int, error) {
 	rules, err := ParseRulesYAML(data, "custom")
 	if err != nil {
 		return 0, err
+	}
+
+	// Save rules to disk if rulesDir is set
+	if e.rulesDir != "" {
+		// Split multi-document YAML and save each separately
+		// This preserves original formatting better than re-marshaling
+		docs := strings.Split(string(data), "---")
+		for _, doc := range docs {
+			doc = strings.TrimSpace(doc)
+			if doc == "" {
+				continue
+			}
+			// Get the title for the filename
+			var meta struct {
+				Title string `yaml:"title"`
+			}
+			// We use a simple unmarshal here just to get the title
+			if err := yaml.Unmarshal([]byte(doc), &meta); err == nil && meta.Title != "" {
+				filename := Slugify(meta.Title) + ".yml"
+				// Custom rules always go to customRulesDir
+				targetDir := e.customRulesDir
+				if targetDir == "" {
+					targetDir = e.rulesDir
+				}
+				filePath := filepath.Join(targetDir, filename)
+				if err := os.WriteFile(filePath, []byte(doc), 0644); err != nil {
+					e.log.Warnw("Failed to save rule to disk", "file", filePath, "error", err)
+				} else {
+					e.log.Infow("Saved imported rule to disk", "file", filename)
+				}
+			}
+		}
 	}
 
 	e.mu.Lock()
@@ -169,7 +227,16 @@ func (e *Engine) UpdateRule(id string, updated Rule) bool {
 			updated.CreatedAt = r.CreatedAt
 			updated.Source = r.Source
 			updated.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+			
+			// If name changed, delete the old file
+			if updated.Name != r.Name {
+				go e.deleteRuleFromDisk(r)
+			}
+			
 			e.rules[i] = updated
+			
+			// Persist to disk
+			go e.saveRuleToDisk(updated)
 			return true
 		}
 	}
@@ -182,11 +249,99 @@ func (e *Engine) DeleteRule(id string) bool {
 	defer e.mu.Unlock()
 	for i, r := range e.rules {
 		if r.ID == id {
+			// Remove from disk first
+			go e.deleteRuleFromDisk(r)
+			
 			e.rules = append(e.rules[:i], e.rules[i+1:]...)
 			return true
 		}
 	}
 	return false
+}
+
+// saveRuleToDisk persists a custom rule to the rules directory as a Sigma YAML file.
+func (e *Engine) saveRuleToDisk(r Rule) {
+	// Predefined rules are not saved back to disk by the engine
+	if r.Source == "sigma" {
+		return
+	}
+
+	targetDir := e.customRulesDir
+	if targetDir == "" {
+		targetDir = e.rulesDir
+	}
+	if targetDir == "" {
+		return
+	}
+
+	selections := make(map[string]interface{})
+	for _, cond := range r.Conditions {
+		key := cond.Field
+		switch cond.Operator {
+		case "equals":
+			key += "|equals"
+		case "starts_with":
+			key += "|startswith"
+		case "ends_with":
+			key += "|endswith"
+		case "regex":
+			key += "|re"
+		case "contains":
+			key += "|contains"
+		}
+		selections[key] = cond.Value
+	}
+
+	yamlData := map[string]interface{}{
+		"title":       r.Name,
+		"id":          r.ID,
+		"description": r.Description,
+		"level":       r.Severity,
+		"enabled":     r.Enabled,
+		"tags":        r.Tags,
+		"logsource": map[string]string{
+			"product": "linux",
+		},
+		"detection": map[string]interface{}{
+			"selection": selections,
+			"condition": "selection",
+		},
+		"event_types": r.EventTypes,
+		"date":        time.Now().Format("2006/01/02"),
+	}
+
+	data, err := yaml.Marshal(yamlData)
+	if err != nil {
+		e.log.Warnw("Failed to marshal rule to YAML", "rule", r.ID, "error", err)
+		return
+	}
+
+	filename := Slugify(r.Name) + ".yml"
+	filePath := filepath.Join(targetDir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		e.log.Warnw("Failed to save rule to disk", "file", filePath, "error", err)
+	} else {
+		e.log.Infow("Persisted custom rule to disk", "file", filename)
+	}
+}
+
+// deleteRuleFromDisk removes the YAML file for a rule if it exists.
+func (e *Engine) deleteRuleFromDisk(r Rule) {
+	if r.Source == "sigma" {
+		return
+	}
+	targetDir := e.customRulesDir
+	if targetDir == "" {
+		targetDir = e.rulesDir
+	}
+	if targetDir == "" {
+		return
+	}
+	filename := Slugify(r.Name) + ".yml"
+	filePath := filepath.Join(targetDir, filename)
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		e.log.Warnw("Failed to delete rule file from disk", "file", filePath, "error", err)
+	}
 }
 
 // Start begins processing events from NATS.
